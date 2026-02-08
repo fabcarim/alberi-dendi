@@ -1,57 +1,58 @@
 const LevelGenerator = {
-    generate: function (size) {
-        // Attempt to generate a valid board. If it fails (backtracking locks up), retry.
+    generate: function (size, seed) {
+        // Use seeded RNG if provided, otherwise random
+        const rng = new window.SeededRNG(seed);
+
+        // Attempt to generate a valid board.
         let solution = null;
         let attempts = 0;
 
         while (!solution && attempts < 100) {
-            solution = this.placeTrees(size);
+            solution = this.placeTrees(size, rng);
             attempts++;
         }
 
         if (!solution) {
             console.error("Failed to generate valid tree placement after 100 attempts");
-            // Fallback to a diagonal placement just to have something (though invalid per adjacency rules usually)
-            // But let's hope 100 attempts is enough for small grids.
             return this.generateFallback(size);
         }
 
-        const regions = this.generateRegions(solution, size);
+        const regions = this.generateRegions(solution, size, rng);
 
         return {
-            id: 'gen_' + Date.now(),
-            name: "Livello Generato",
+            id: 'daily_' + (seed || Date.now()),
+            name: "Livello del Giorno",
             size: size,
             treesPerLine: 1,
             regions: regions,
-            solution: solution // Optional: keep for debugging or hints
+            solution: solution
         };
     },
 
-    placeTrees: function (size) {
+    placeTrees: function (size, rng) {
         // Simple backtracking to place 1 tree per row and col, no touching
         const grid = Array(size).fill().map(() => Array(size).fill(0));
         const colsUsed = Array(size).fill(false);
 
-        if (this.backtrack(grid, 0, size, colsUsed)) {
+        if (this.backtrack(grid, 0, size, colsUsed, rng)) {
             return grid;
         }
         return null;
     },
 
-    backtrack: function (grid, r, size, colsUsed) {
+    backtrack: function (grid, r, size, colsUsed, rng) {
         if (r === size) return true;
 
         // Try random column order to ensure variety
         const cols = Array.from({ length: size }, (_, i) => i);
-        this.shuffle(cols);
+        rng.shuffle(cols);
 
         for (let c of cols) {
             if (!colsUsed[c] && this.isValidPlacement(grid, r, c, size)) {
                 grid[r][c] = 1;
                 colsUsed[c] = true;
 
-                if (this.backtrack(grid, r + 1, size, colsUsed)) return true;
+                if (this.backtrack(grid, r + 1, size, colsUsed, rng)) return true;
 
                 grid[r][c] = 0;
                 colsUsed[c] = false;
@@ -61,17 +62,8 @@ const LevelGenerator = {
     },
 
     isValidPlacement: function (grid, r, c, size) {
-        // Check adjacent cells (including diagonals) for existing trees
-        // Since we fill row by row, we only need to check previous rows (r-1)
-        // and actually just needs to check immediate neighbors in previous row?
-        // Actually, we need to check all 8 neighbors if we were placing randomly, 
-        // but since we go row by row, we check r-1.
-
         const directions = [
             [-1, -1], [-1, 0], [-1, 1],
-            // We haven't placed anything in current row (except maybe if we did weird recursion, 
-            // but here we place 1 per row so no horizontal checks needed inside row)
-            // And future rows are empty.
         ];
 
         for (let [dr, dc] of directions) {
@@ -85,13 +77,12 @@ const LevelGenerator = {
         return true;
     },
 
-    generateRegions: function (treeGrid, size) {
+    generateRegions: function (treeGrid, size, rng) {
         // Multi-source BFS ( Voronoi growth )
         const regions = Array(size).fill().map(() => Array(size).fill(-1));
         const queue = [];
 
         // Initialize queue with tree positions
-        // Assign each tree a unique region ID (0 to size-1)
         let regionIdCounter = 0;
         for (let r = 0; r < size; r++) {
             for (let c = 0; c < size; c++) {
@@ -103,18 +94,13 @@ const LevelGenerator = {
             }
         }
 
-        // Shuffle queue to make growth less uniform
-        this.shuffle(queue);
+        rng.shuffle(queue);
 
         while (queue.length > 0) {
-            // Randomly pick index to pop to simulate organic growth? 
-            // Standard queue is BFS (round robin). 
-            // Let's stick to standard BFS but maybe shuffle neighbors.
-
             const item = queue.shift();
 
             const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
-            this.shuffle(dirs);
+            rng.shuffle(dirs);
 
             for (let [dr, dc] of dirs) {
                 const nr = item.r + dr;
@@ -129,12 +115,10 @@ const LevelGenerator = {
             }
         }
 
-        // Fill any remaining gaps (if any, though BFS shouldn't leave any if graph is connected)
-        // Just in case:
+        // Fill gaps
         for (let r = 0; r < size; r++) {
             for (let c = 0; c < size; c++) {
                 if (regions[r][c] === -1) {
-                    // Assign to neighbor
                     regions[r][c] = 0; // Fallback
                 }
             }
@@ -143,15 +127,7 @@ const LevelGenerator = {
         return regions;
     },
 
-    shuffle: function (array) {
-        for (let i = array.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [array[i], array[j]] = [array[j], array[i]];
-        }
-    },
-
     generateFallback: function (size) {
-        // Just return a basic diagonal setup if everything fails
         const regions = Array(size).fill().map((_, r) => Array(size).fill(r));
         return {
             id: 'fallback',

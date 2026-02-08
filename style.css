@@ -1,21 +1,28 @@
 :root {
-    --bg-color: #f0f7f4;
+    --bg-color: #eef2f5;
     --text-color: #2c3e50;
-    --primary-color: #27ae60;
-    --primary-hover: #219150;
+    --primary-color: #2ecc71;
+    --primary-hover: #27ae60;
     --secondary-color: #95a5a6;
     --board-bg: #ffffff;
-    --border-color: #34495e;
+    --border-color: #2c3e50;
 
-    /* Region Colors - Soft pastels for contrast */
-    --region-0: #e8f5e9;
-    --region-1: #fff3e0;
-    --region-2: #e3f2fd;
-    --region-3: #f3e5f5;
-    --region-4: #fffde7;
-    --region-5: #fbe9e7;
-    --region-6: #e0f7fa;
-    --region-7: #f1f8e9;
+    /* Region Colors - stronger contrast */
+    --region-0: #ffffff;
+    --region-1: #e3f2fd;
+    /* Light Blue */
+    --region-2: #fff3e0;
+    /* Light Orange */
+    --region-3: #e8f5e9;
+    /* Light Green */
+    --region-4: #fce4ec;
+    /* Light Pink */
+    --region-5: #f3e5f5;
+    /* Light Purple */
+    --region-6: #fffde7;
+    /* Light Yellow */
+    --region-7: #eceff1;
+    /* Light Grey */
 }
 
 * {
@@ -46,21 +53,40 @@ body {
 }
 
 header h1 {
-    font-weight: 600;
-    color: var(--primary-color);
+    font-weight: 700;
+    color: #27ae60;
+    /* Darker Green */
     margin-bottom: 0.5rem;
 }
 
 header p {
     font-size: 0.9rem;
     color: #666;
-    margin-bottom: 2rem;
+    margin-bottom: 1rem;
 }
 
 header a {
     color: var(--primary-color);
     text-decoration: none;
     font-weight: 600;
+}
+
+#daily-info {
+    display: flex;
+    justify-content: space-between;
+    /* Date left, Timer right */
+    align-items: center;
+    width: 100%;
+    max-width: 400px;
+    /* Constrain width matches board roughly */
+    margin: 0 auto 1.5rem;
+    font-weight: 600;
+    font-size: 1.1rem;
+    color: #34495e;
+    background: #f8f9fa;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    border: 1px solid #eee;
 }
 
 .game-controls {
@@ -75,29 +101,33 @@ header a {
     padding: 0.6rem 1.2rem;
     border: none;
     border-radius: 8px;
-    font-weight: 600;
+    font-weight: 700;
     cursor: pointer;
     transition: all 0.2s ease;
     font-family: inherit;
+    font-size: 1rem;
 }
 
 .primary {
     background-color: var(--primary-color);
     color: white;
+    box-shadow: 0 4px 6px rgba(46, 204, 113, 0.2);
 }
 
 .primary:hover {
     background-color: var(--primary-hover);
-    transform: translateY(-1px);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(46, 204, 113, 0.3);
 }
 
 .secondary {
-    background-color: #e0e0e0;
-    color: #333;
+    background-color: #ecf0f1;
+    color: #7f8c8d;
 }
 
 .secondary:hover {
-    background-color: #d0d0d0;
+    background-color: #bdc3c7;
+    color: #2c3e50;
 }
 
 select {
@@ -111,11 +141,11 @@ select {
     margin-bottom: 1rem;
     font-size: 1.1rem;
     min-height: 1.5rem;
-    font-weight: 500;
+    font-weight: 600;
 }
 
 .game-status.error {
-    color: #e74c3c;
+    color: #c0392b;
 }
 
 .game-status.success {
@@ -124,80 +154,103 @@ select {
 
 .board-container {
     display: grid;
-    gap: 2px;
-    background-color: var(--text-color);
-    /* Lines color */
-    border: 2px solid var(--text-color);
+    gap: 0;
+    /* Remove gap, handle borders on cells */
+    background-color: var(--border-color);
     margin: 0 auto 2rem;
     user-select: none;
     width: fit-content;
+    border: 3px solid var(--border-color);
+    /* Outer border */
 }
 
 .cell {
-    width: 50px;
-    height: 50px;
+    width: 45px;
+    height: 45px;
     background-color: white;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.5rem;
+    font-size: 1.6rem;
     cursor: pointer;
     transition: background-color 0.1s;
+    /* Borders */
+    border-right: 1px solid rgba(0, 0, 0, 0.1);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    position: relative;
 }
+
+/* Thicker borders for Region boundaries? 
+   Hard to do without grid state knowledge in CSS. 
+   Instead, we use vivid background colors and the grid lines.
+*/
 
 .cell:hover {
     filter: brightness(0.95);
 }
 
-/* Region styling */
+.cell.disabled {
+    cursor: default;
+    pointer-events: none;
+}
+
+/* Region styling - High Contrast Mode */
 .region-0 {
-    background-color: var(--region-0);
+    background-color: #ffffff;
 }
 
 .region-1 {
-    background-color: var(--region-1);
+    background-color: #bbdefb;
 }
 
+/* Blue 100 */
 .region-2 {
-    background-color: var(--region-2);
+    background-color: #ffe0b2;
 }
 
+/* Orange 100 */
 .region-3 {
-    background-color: var(--region-3);
+    background-color: #c8e6c9;
 }
 
+/* Green 100 */
 .region-4 {
-    background-color: var(--region-4);
+    background-color: #f8bbd0;
 }
 
+/* Pink 100 */
 .region-5 {
-    background-color: var(--region-5);
+    background-color: #e1bee7;
 }
 
+/* Purple 100 */
 .region-6 {
-    background-color: var(--region-6);
+    background-color: #f0f4c3;
 }
 
+/* Lime 100 */
 .region-7 {
-    background-color: var(--region-7);
+    background-color: #cfd8dc;
 }
+
+/* Blue Grey 100 */
 
 /* Icons */
 .cell.tree::after {
     content: "🌳";
-    animation: pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    animation: pop 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 .cell.cross::after {
     content: "❌";
-    font-size: 1.2rem;
-    opacity: 0.4;
-    animation: pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    font-size: 1rem;
+    opacity: 0.6;
+    animation: fadein 0.2s;
 }
 
 .cell.error {
-    background-color: #ffcdd2 !important;
-    /* Error highlight */
+    box-shadow: inset 0 0 0 3px #c0392b;
+    /* Inner red border */
     animation: shake 0.3s;
 }
 
@@ -224,15 +277,11 @@ footer {
     }
 
     25% {
-        transform: translateX(-5px);
-    }
-
-    50% {
-        transform: translateX(5px);
+        transform: translateX(-4px);
     }
 
     75% {
-        transform: translateX(-5px);
+        transform: translateX(4px);
     }
 
     100% {
@@ -256,10 +305,43 @@ footer {
     }
 }
 
+/* Size Selector */
+.size-btn {
+    min-width: 60px;
+    font-size: 0.9rem;
+    padding: 0.4rem 0.6rem;
+}
+
+.size-btn.active {
+    background-color: var(--primary-color);
+    color: white;
+    border: 2px solid var(--primary-hover);
+}
+
+.size-btn.completed {
+    background-color: #f1c40f;
+    /* Gold for completed */
+    color: #fff;
+}
+
+/* Ensure mobile responsiveness */
 @media (max-width: 500px) {
     .cell {
-        width: 40px;
-        height: 40px;
-        font-size: 1.2rem;
+        width: 38px;
+        height: 38px;
+        font-size: 1.3rem;
+    }
+
+    header h1 {
+        font-size: 1.5rem;
+    }
+
+    .app-container {
+        padding: 1rem;
+    }
+
+    #daily-info {
+        flex-direction: column;
+        gap: 0.5rem;
     }
 }
