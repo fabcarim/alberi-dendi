@@ -1,57 +1,61 @@
 const LevelGenerator = {
-    generate: function (size) {
-        // Attempt to generate a valid board. If it fails (backtracking locks up), retry.
-        let solution = null;
-        let attempts = 0;
+    generate: function (size, seed) {
+        // Use seeded RNG if provided, otherwise random
+        const rng = new window.SeededRNG(seed);
 
-        while (!solution && attempts < 100) {
-            solution = this.placeTrees(size);
-            attempts++;
+        let maxGlobalAttempts = 50;
+
+        for (let attempt = 0; attempt < maxGlobalAttempts; attempt++) {
+            // 1. Generate a valid tree placement
+            let treeGrid = this.placeTrees(size, rng);
+            if (!treeGrid) continue;
+
+            // 2. Generate regions based on that placement
+            let regions = this.generateRegions(treeGrid, size, rng);
+
+            // 3. Refine regions to enforce uniqueness
+            let uniqueRegions = this.enforceUniqueness(regions, treeGrid, size, rng);
+
+            if (uniqueRegions) {
+                return {
+                    id: 'daily_' + (seed || Date.now()),
+                    name: "Livello del Giorno",
+                    size: size,
+                    treesPerLine: 1,
+                    regions: uniqueRegions,
+                    solution: treeGrid
+                };
+            }
         }
 
-        if (!solution) {
-            console.error("Failed to generate valid tree placement after 100 attempts");
-            // Fallback to a diagonal placement just to have something (though invalid per adjacency rules usually)
-            // But let's hope 100 attempts is enough for small grids.
-            return this.generateFallback(size);
-        }
-
-        const regions = this.generateRegions(solution, size);
-
-        return {
-            id: 'gen_' + Date.now(),
-            name: "Livello Generato",
-            size: size,
-            treesPerLine: 1,
-            regions: regions,
-            solution: solution // Optional: keep for debugging or hints
-        };
+        console.warn(`Could not generate unique puzzle in ${maxGlobalAttempts} attempts`);
+        return this.generateFallback(size);
     },
 
-    placeTrees: function (size) {
+    placeTrees: function (size, rng) {
         // Simple backtracking to place 1 tree per row and col, no touching
         const grid = Array(size).fill().map(() => Array(size).fill(0));
         const colsUsed = Array(size).fill(false);
 
-        if (this.backtrack(grid, 0, size, colsUsed)) {
+        if (this.backtrack(grid, 0, size, colsUsed, rng)) {
             return grid;
         }
         return null;
     },
 
-    backtrack: function (grid, r, size, colsUsed) {
+    backtrack: function (grid, r, size, colsUsed, rng) {
         if (r === size) return true;
 
         // Try random column order to ensure variety
         const cols = Array.from({ length: size }, (_, i) => i);
-        this.shuffle(cols);
+        rng.shuffle(cols);
 
         for (let c of cols) {
             if (!colsUsed[c] && this.isValidPlacement(grid, r, c, size)) {
                 grid[r][c] = 1;
                 colsUsed[c] = true;
 
-                if (this.backtrack(grid, r + 1, size, colsUsed)) return true;
+                if (this.backtrack(grid, r + 1, size, colsUsed, rng)) return true;
 
                 grid[r][c] = 0;
                 colsUsed[c] = false;
@@ -61,17 +65,8 @@ const LevelGenerator = {
     },
 
     isValidPlacement: function (grid, r, c, size) {
-        // Check adjacent cells (including diagonals) for existing trees
-        // Since we fill row by row, we only need to check previous rows (r-1)
-        // and actually just needs to check immediate neighbors in previous row?
-        // Actually, we need to check all 8 neighbors if we were placing randomly, 
-        // but since we go row by row, we check r-1.
-
         const directions = [
             [-1, -1], [-1, 0], [-1, 1],
-            // We haven't placed anything in current row (except maybe if we did weird recursion, 
-            // but here we place 1 per row so no horizontal checks needed inside row)
-            // And future rows are empty.
         ];
 
         for (let [dr, dc] of directions) {
@@ -85,13 +80,12 @@ const LevelGenerator = {
         return true;
     },
 
-    generateRegions: function (treeGrid, size) {
+    generateRegions: function (treeGrid, size, rng) {
         // Multi-source BFS ( Voronoi growth )
         const regions = Array(size).fill().map(() => Array(size).fill(-1));
         const queue = [];
 
         // Initialize queue with tree positions
-        // Assign each tree a unique region ID (0 to size-1)
         let regionIdCounter = 0;
         for (let r = 0; r < size; r++) {
             for (let c = 0; c < size; c++) {
@@ -103,18 +97,13 @@ const LevelGenerator = {
             }
         }
 
-        // Shuffle queue to make growth less uniform
-        this.shuffle(queue);
+        rng.shuffle(queue);
 
         while (queue.length > 0) {
-            // Randomly pick index to pop to simulate organic growth? 
-            // Standard queue is BFS (round robin). 
-            // Let's stick to standard BFS but maybe shuffle neighbors.
-
             const item = queue.shift();
 
             const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
-            this.shuffle(dirs);
+            rng.shuffle(dirs);
 
             for (let [dr, dc] of dirs) {
                 const nr = item.r + dr;
@@ -129,13 +118,12 @@ const LevelGenerator = {
             }
         }
 
-        // Fill any remaining gaps (if any, though BFS shouldn't leave any if graph is connected)
-        // Just in case:
+        // Fill gaps
         for (let r = 0; r < size; r++) {
             for (let c = 0; c < size; c++) {
                 if (regions[r][c] === -1) {
-                    // Assign to neighbor
-                    regions[r][c] = 0; // Fallback
+                    // Start a BFS from here to find nearest region
+                    regions[r][c] = this.findNearestRegion(regions, r, c, size) || 0;
                 }
             }
         }
@@ -143,19 +131,234 @@ const LevelGenerator = {
         return regions;
     },
 
-    shuffle: function (array) {
-        for (let i = array.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [array[i], array[j]] = [array[j], array[i]];
+    findNearestRegion: function (regions, r, c, size) {
+        // Simple scan if gaps remain (rare with BFS but possible if disconnected)
+        // Just take neighbor
+        const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+        for (let [dr, dc] of dirs) {
+            const nr = r + dr, nc = c + dc;
+            if (nr >= 0 && nr < size && nc >= 0 && nc < size && regions[nr][nc] !== -1) {
+                return regions[nr][nc];
+            }
         }
+        return 0;
+    },
+
+    // Constructive Unique Solver
+    enforceUniqueness: function (regions, treeGrid, size, rng) {
+        // Try to refine regions up to N times
+        let attempts = 0;
+        let maxRefinements = 50;
+
+        while (attempts < maxRefinements) {
+            // Find solutions
+            const solutions = this.findAllSolutions(regions, size, 2); // Stop if 2
+
+            if (solutions.length === 1) {
+                return regions; // Success!
+            }
+            if (solutions.length === 0) {
+                // Should not happen as treeGrid is a solution
+                return null;
+            }
+
+            // We have > 1 solution. solutions[0] and solutions[1].
+            let intended = treeGrid;
+            let unintended = null;
+
+            // Find which solution is NOT treeGrid
+            for (let sol of solutions) {
+                if (!this.areGridsEqual(sol, intended)) {
+                    unintended = sol;
+                    break;
+                }
+            }
+
+            if (!unintended) {
+                // All solutions found match intended (duplicates)?
+                return regions;
+            }
+
+            // Kill unintended
+            if (!this.refineRegionsOnce(regions, intended, unintended, size, rng)) {
+                // Could not refine
+                return null;
+            }
+
+            attempts++;
+        }
+        return null;
+    },
+
+    refineRegionsOnce: function (regions, intended, unintended, size, rng) {
+        // Find a cell where unintended has a tree
+        let candidates = [];
+        for (let r = 0; r < size; r++) {
+            for (let c = 0; c < size; c++) {
+                if (unintended[r][c] === 1 && intended[r][c] === 0) {
+                    candidates.push({ r, c });
+                }
+            }
+        }
+
+        rng.shuffle(candidates);
+
+        for (let cand of candidates) {
+            const { r, c } = cand;
+            const currentReg = regions[r][c];
+
+            // Try to assign this cell to a neighbor region
+            const neighbors = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+            rng.shuffle(neighbors);
+
+            for (let [dr, dc] of neighbors) {
+                const nr = r + dr, nc = c + dc;
+                if (nr >= 0 && nr < size && nc >= 0 && nc < size) {
+                    const neighborReg = regions[nr][nc];
+                    if (neighborReg !== currentReg) {
+                        // Candidate swap: set regions[r][c] = neighborReg
+
+                        // Check 1: Does this invalidate intended solution?
+                        // Intended has 0 at [r][c], so swapping region of [r][c] 
+                        // doesn't remove a tree from currentReg or add a tree to neighborReg 
+                        // (from intended's perspective, [r][c] is empty). 
+                        // So intended solution remains valid count-wise.
+
+                        // Check 2: Connectivity
+                        // We are removing [r][c] from currentReg. Is currentReg still connected?
+                        // We are adding [r][c] to neighborReg. Is neighborReg still connected? (Always yes if attached to neighbor)
+
+                        // Temporarily swap
+                        regions[r][c] = neighborReg;
+
+                        let connected = this.checkConnectivity(regions, size, currentReg);
+
+                        if (connected) {
+                            // Good swap.
+                            return true;
+                        } else {
+                            // Revert
+                            regions[r][c] = currentReg;
+                        }
+                    }
+                }
+            }
+        }
+        return false;
+    },
+
+    checkConnectivity: function (regions, size, regionId) {
+        // Find first cell of regionId
+        let start = null;
+        let count = 0;
+        for (let r = 0; r < size; r++) {
+            for (let c = 0; c < size; c++) {
+                if (regions[r][c] === regionId) {
+                    if (!start) start = { r, c };
+                    count++;
+                }
+            }
+        }
+        if (count === 0) return true;
+
+        // BFS to count reachable
+        let reached = 0;
+        let q = [start];
+        let visited = new Set();
+        visited.add(`${start.r},${start.c}`);
+
+        while (q.length > 0) {
+            let { r, c } = q.shift();
+            reached++;
+            const dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+            for (let [dr, dc] of dirs) {
+                const nr = r + dr, nc = c + dc;
+                if (nr >= 0 && nr < size && nc >= 0 && nc < size) {
+                    if (regions[nr][nc] === regionId && !visited.has(`${nr},${nc}`)) {
+                        visited.add(`${nr},${nc}`);
+                        q.push({ r: nr, c: nc });
+                    }
+                }
+            }
+        }
+        return reached === count;
+    },
+
+    findAllSolutions: function (regions, size, limit) {
+        let solutions = [];
+        const cols = Array(size).fill(0);
+        const regionHasTree = Array(size).fill(false); // Map regionId -> boolean. careful with IDs. 
+        // IDs are 0..size-1? Yes, generated by counter.
+        const grid = Array(size).fill().map(() => Array(size).fill(0));
+
+        // Just in case IDs are not 0..size-1, let's use a Map or larger array?
+        // Generator guarantees 0..regionIdCounter-1. And regionIdCounter == trees count == size.
+
+        const solve = (r) => {
+            if (solutions.length >= limit) return;
+            if (r === size) {
+                solutions.push(JSON.parse(JSON.stringify(grid)));
+                return;
+            }
+
+            for (let c = 0; c < size; c++) {
+                if (cols[c] > 0) continue;
+                const reg = regions[r][c];
+                if (regionHasTree[reg]) continue;
+                if (this.hasNeighbor(grid, r, c, size)) continue;
+
+                grid[r][c] = 1;
+                cols[c] = 1;
+                regionHasTree[reg] = true;
+
+                solve(r + 1);
+
+                grid[r][c] = 0;
+                cols[c] = 0;
+                regionHasTree[reg] = false;
+            }
+        };
+
+        solve(0);
+        return solutions;
+    },
+
+    areGridsEqual: function (g1, g2) {
+        for (let r = 0; r < g1.length; r++) {
+            for (let c = 0; c < g1.length; c++) {
+                if (g1[r][c] !== g2[r][c]) return false;
+            }
+        }
+        return true;
+    },
+
+    countSolutions: function (regions, size, maxSolutions) {
+        // Kept for compatibility if needed, but generate uses enforceUniqueness
+        // which uses findAllSolutions.
+        return this.findAllSolutions(regions, size, maxSolutions).length;
+    },
+
+    hasNeighbor: function (grid, r, c, size) {
+        const dirs = [
+            [-1, -1], [-1, 0], [-1, 1],
+        ];
+
+        for (let [dr, dc] of dirs) {
+            const nr = r + dr;
+            const nc = c + dc;
+            if (nr >= 0 && nr < size && nc >= 0 && nc < size) {
+                if (grid[nr][nc] === 1) return true;
+            }
+        }
+
+        return false;
     },
 
     generateFallback: function (size) {
-        // Just return a basic diagonal setup if everything fails
         const regions = Array(size).fill().map((_, r) => Array(size).fill(r));
         return {
             id: 'fallback',
-            name: "Livello Fallback",
+            name: "Livello Standard",
             size: size,
             treesPerLine: 1,
             regions: regions
