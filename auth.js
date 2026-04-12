@@ -10,6 +10,22 @@ function initAuth() {
         return;
     }
 
+    // Gestisci ritorno da Google redirect
+    firebaseAuth.getRedirectResult().then(async (result) => {
+        if (result && result.user && result.additionalUserInfo && result.additionalUserInfo.isNewUser) {
+            const user = result.user;
+            const nickname = user.displayName || user.email.split('@')[0];
+            if (firebaseDb) {
+                await firebaseDb.collection('users').doc(user.uid).set({
+                    nickname: nickname,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            }
+        }
+    }).catch(err => {
+        console.error('Errore redirect Google:', err);
+    });
+
     firebaseAuth.onAuthStateChanged(async (user) => {
         currentUser = user;
         updateAuthUI(user);
@@ -137,19 +153,8 @@ async function handleGoogleLogin() {
 
     try {
         const provider = new firebase.auth.GoogleAuthProvider();
-        const result = await firebaseAuth.signInWithPopup(provider);
-
-        // Se e' la prima volta, salva il profilo
-        if (result.additionalUserInfo && result.additionalUserInfo.isNewUser) {
-            const user = result.user;
-            const nickname = user.displayName || user.email.split('@')[0];
-            if (firebaseDb) {
-                await firebaseDb.collection('users').doc(user.uid).set({
-                    nickname: nickname,
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                });
-            }
-        }
+        // Usa redirect invece di popup (piu' affidabile su GitHub Pages)
+        await firebaseAuth.signInWithRedirect(provider);
     } catch (err) {
         console.error('Errore Google login:', err);
         const errorEl = document.getElementById('login-error');
