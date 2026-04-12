@@ -1,11 +1,12 @@
 // ============================================================
-// AUTH.JS - Sistema Login / Registrazione
+// AUTH.JS - Sistema Login / Registrazione (Login Obbligatorio)
 // ============================================================
 
 let currentUser = null;
 
 function initAuth() {
     if (!window.firebaseReady) {
+        showLoginOverlay();
         updateAuthUI(null);
         return;
     }
@@ -15,14 +16,25 @@ function initAuth() {
         updateAuthUI(user);
 
         if (user) {
-            // Sincronizza localStorage -> Firestore al primo login
+            hideLoginOverlay();
             await syncLocalToFirestore(user.uid);
-            // Ricarica il livello corrente per mostrare dati aggiornati
             if (typeof loadDailyLevel === 'function') {
                 loadDailyLevel(currentSize);
             }
+        } else {
+            showLoginOverlay();
         }
     });
+}
+
+function showLoginOverlay() {
+    const overlay = document.getElementById('login-overlay');
+    if (overlay) overlay.style.display = 'flex';
+}
+
+function hideLoginOverlay() {
+    const overlay = document.getElementById('login-overlay');
+    if (overlay) overlay.style.display = 'none';
 }
 
 function updateAuthUI(user) {
@@ -39,14 +51,7 @@ function updateAuthUI(user) {
         document.getElementById('btn-logout').addEventListener('click', handleLogout);
         document.getElementById('btn-stats').addEventListener('click', showStatsModal);
     } else {
-        if (window.firebaseReady) {
-            authContainer.innerHTML = `
-                <button class="btn primary btn-small" id="btn-show-login">Accedi</button>
-            `;
-            document.getElementById('btn-show-login').addEventListener('click', showAuthModal);
-        } else {
-            authContainer.innerHTML = `<span class="auth-local-mode">Modalita' locale</span>`;
-        }
+        authContainer.innerHTML = '';
     }
 }
 
@@ -107,13 +112,17 @@ async function handleLogin(e) {
 
 async function handleRegister(e) {
     e.preventDefault();
-    const name = document.getElementById('register-name').value.trim();
+    const nickname = document.getElementById('register-name').value.trim();
     const email = document.getElementById('register-email').value.trim();
     const password = document.getElementById('register-password').value;
     const errorEl = document.getElementById('register-error');
 
-    if (!name || !email || !password) {
+    if (!nickname || !email || !password) {
         errorEl.textContent = 'Compila tutti i campi.';
+        return;
+    }
+    if (nickname.length < 2) {
+        errorEl.textContent = 'Il nickname deve avere almeno 2 caratteri.';
         return;
     }
     if (password.length < 6) {
@@ -123,13 +132,11 @@ async function handleRegister(e) {
 
     try {
         const cred = await firebaseAuth.createUserWithEmailAndPassword(email, password);
-        await cred.user.updateProfile({ displayName: name });
+        await cred.user.updateProfile({ displayName: nickname });
 
-        // Salva profilo su Firestore
         if (firebaseDb) {
             await firebaseDb.collection('users').doc(cred.user.uid).set({
-                username: name,
-                email: email,
+                nickname: nickname,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
         }
@@ -144,9 +151,6 @@ async function handleLogout() {
     try {
         await firebaseAuth.signOut();
         currentUser = null;
-        if (typeof loadDailyLevel === 'function') {
-            loadDailyLevel(currentSize);
-        }
     } catch (err) {
         console.error('Errore logout:', err);
     }
@@ -194,7 +198,6 @@ async function showStatsModal() {
             return;
         }
 
-        // Calcola statistiche
         const totalCompleted = completions.length;
         const bestTimes = {};
         const dateSet = new Set();
@@ -207,7 +210,6 @@ async function showStatsModal() {
             }
         });
 
-        // Calcola streak
         const streak = calculateStreak(dateSet);
 
         let html = `
@@ -251,7 +253,6 @@ function calculateStreak(dateSet) {
     const today = new Date().toISOString().split('T')[0];
     const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
 
-    // Lo streak conta solo se hai giocato oggi o ieri
     if (dates[0] !== today && dates[0] !== yesterday) return 0;
 
     let streak = 1;

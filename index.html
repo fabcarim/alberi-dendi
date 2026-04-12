@@ -10,6 +10,19 @@
 </head>
 
 <body>
+    <!-- Overlay login obbligatorio -->
+    <div id="login-overlay" class="login-overlay">
+        <div class="login-overlay-content">
+            <h1>Alberi Daily 🌲</h1>
+            <p>Un gioco di logica ispirato a Giorgio Dendi</p>
+            <p style="margin: 1.5rem 0; color: #666;">Accedi o registrati per giocare e salvare i tuoi progressi.</p>
+            <div style="display: flex; gap: 1rem; justify-content: center;">
+                <button class="btn primary" onclick="showAuthModal()">Accedi</button>
+                <button class="btn secondary" onclick="switchAuthTab('register'); showAuthModal();">Registrati</button>
+            </div>
+        </div>
+    </div>
+
     <div class="app-container">
         <header>
             <div id="auth-container" class="auth-container"></div>
@@ -27,12 +40,10 @@
             <div id="size-selector" style="margin-bottom: 1rem; width: 100%; display: flex; justify-content: center; gap: 0.5rem; flex-wrap: wrap;"></div>
             <button id="btn-check" class="btn primary">Controlla</button>
             <button id="btn-reset" class="btn secondary">Ricomincia</button>
-            <button id="btn-training" class="btn secondary" style="background-color: #9b59b6; color: white; border-color: #9b59b6;">Allenamento Libero</button>
+            <button id="btn-leaderboard" class="btn secondary" style="background-color: #f39c12; color: white;">Classifica 🏆</button>
         </div>
 
         <div id="share-container" style="display: none; margin-bottom: 1rem;">
-            <input type="text" id="username-input" placeholder="Il tuo nome" maxlength="15"
-                style="padding: 0.5rem; border-radius: 4px; border: 1px solid #ddd;">
             <button id="btn-share" class="btn primary" style="background-color: #3498db;">Condividi Risultato 📤</button>
         </div>
 
@@ -72,7 +83,7 @@
             </form>
 
             <form id="register-form" style="display: none;" onsubmit="handleRegister(event)">
-                <input type="text" id="register-name" class="large-input" placeholder="Il tuo nome" maxlength="20" autocomplete="name">
+                <input type="text" id="register-name" class="large-input" placeholder="Nickname (visibile in classifica)" maxlength="20">
                 <input type="email" id="register-email" class="large-input" placeholder="Email" autocomplete="email">
                 <input type="password" id="register-password" class="large-input" placeholder="Password (min 6 caratteri)" autocomplete="new-password">
                 <p id="register-error" class="auth-error"></p>
@@ -91,6 +102,18 @@
             <div id="stats-content"></div>
             <div class="modal-actions" style="margin-top: 1.5rem;">
                 <button class="btn secondary" onclick="hideStatsModal()">Chiudi</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modale Classifica -->
+    <div id="leaderboard-modal" class="modal">
+        <div class="modal-content" style="max-width: 450px;">
+            <h2 style="margin-bottom: 1rem;">Classifica del Giorno 🏆</h2>
+            <div id="leaderboard-size-tabs" class="leaderboard-tabs"></div>
+            <div id="leaderboard-content"></div>
+            <div class="modal-actions" style="margin-top: 1.5rem;">
+                <button class="btn secondary" onclick="hideLeaderboardModal()">Chiudi</button>
             </div>
         </div>
     </div>

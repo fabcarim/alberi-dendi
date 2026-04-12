@@ -1,13 +1,12 @@
 // Game State
 let currentLevel = null;
-let currentSize = 5; // Default start size
-let gridState = []; // 0: Empty, 1: Tree, 2: Cross
+let currentSize = 5;
+let gridState = [];
 let isGameActive = false;
 let gameTimer = null;
 let startTime = 0;
 let elapsedTime = 0;
 let todayStr = "";
-let isTrainingMode = false;
 let isTimerRunning = false;
 
 // DOM Elements
@@ -18,7 +17,6 @@ const btnReset = document.getElementById('btn-reset');
 const dateDisplayEl = document.getElementById('date-display');
 const timerDisplayEl = document.getElementById('timer-display');
 const shareContainer = document.getElementById('share-container');
-const usernameInput = document.getElementById('username-input');
 const btnShare = document.getElementById('btn-share');
 const sizeSelectorEl = document.getElementById('size-selector');
 
@@ -30,17 +28,15 @@ const mainSubtitleEl = document.getElementById('main-subtitle');
 
 // Initialize
 function init() {
-    // Set Date Display & Archive Constraints
     const now = new Date();
-    const realtimeTodayStr = now.toISOString().split('T')[0]; // YYYY-MM-DD
+    const realtimeTodayStr = now.toISOString().split('T')[0];
     todayStr = realtimeTodayStr;
-    
+
     if (archiveDateEl) {
         archiveDateEl.max = realtimeTodayStr;
         const minDate = new Date();
         minDate.setMonth(minDate.getMonth() - 6);
         archiveDateEl.min = minDate.toISOString().split('T')[0];
-        // Set the value explicitly to today to prevent gg/mm/aaaa issue
         archiveDateEl.value = realtimeTodayStr;
 
         archiveDateEl.addEventListener('change', (e) => {
@@ -53,16 +49,12 @@ function init() {
         });
     }
 
-    // Setup Events
     btnCheck.addEventListener('click', checkSolution);
     btnReset.addEventListener('click', resetLevel);
     btnShare.addEventListener('click', shareResult);
-    document.getElementById('btn-training').addEventListener('click', loadTrainingLevel);
+    document.getElementById('btn-leaderboard').addEventListener('click', showLeaderboardModal);
 
-    // Initialize Size Selector
     renderSizeSelector();
-
-    // Load Default Level (Start with 5x5 or first incomplete)
     loadDailyLevel(5);
 }
 
@@ -76,7 +68,6 @@ function renderSizeSelector() {
         btn.textContent = `${size}x${size}`;
         btn.dataset.size = size;
 
-        // Check completion status
         const savedData = localStorage.getItem(`alberi_daily_${todayStr}_${size}`);
         if (savedData) {
             btn.classList.add('completed');
@@ -94,10 +85,10 @@ function renderSizeSelector() {
         sizeSelectorEl.appendChild(btn);
     });
 
-    // --- Sfida Settimanale (12x12) ---
+    // Sfida Settimanale (12x12)
     const dateObj = new Date(todayStr);
     const isSunday = dateObj.getDay() === 0;
-    
+
     const realtimeNow = new Date();
     const realtimeTodayStr = realtimeNow.toISOString().split('T')[0];
     const isToday = todayStr === realtimeTodayStr;
@@ -107,7 +98,7 @@ function renderSizeSelector() {
         if (isToday) {
             if (realtimeNow.getHours() >= 9) isUnlocked = true;
         } else {
-            isUnlocked = true; // Permetti di giocare a domeniche passate
+            isUnlocked = true;
         }
     }
 
@@ -151,9 +142,7 @@ function renderSizeSelector() {
 
 async function loadDailyLevel(size) {
     currentSize = size;
-    isTrainingMode = false;
 
-    // Display updates
     const realtimeNow = new Date();
     const realtimeTodayStr = realtimeNow.toISOString().split('T')[0];
 
@@ -175,13 +164,12 @@ async function loadDailyLevel(size) {
     btnCheck.style.display = 'inline-block';
     btnReset.style.display = 'inline-block';
 
-    // Update Active Button
     document.querySelectorAll('.size-btn').forEach(b => {
         b.classList.remove('active');
         if (parseInt(b.dataset.size) === size) b.classList.add('active');
     });
 
-    // Check if already completed (localStorage + Firestore)
+    // Check if already completed
     const completedData = await isLevelCompleted(todayStr, size);
 
     if (completedData) {
@@ -189,14 +177,11 @@ async function loadDailyLevel(size) {
         return;
     }
 
-    // Seeded RNG for this specific size and date
     const seed = `${todayStr}_${size}`;
-
-    // Generate Level
     const level = window.LevelGenerator.generate(size, seed);
     loadLevel(level);
 
-    // Start Timer or load progress (localStorage first, then Firestore)
+    // Load progress
     let progressLoaded = false;
     const progressData = localStorage.getItem(`alberi_progress_${todayStr}_${size}`);
     if (progressData) {
@@ -214,7 +199,6 @@ async function loadDailyLevel(size) {
         } catch (e) { /* ignore */ }
     }
 
-    // Se non trovato in localStorage, prova Firestore
     if (!progressLoaded && currentUser && window.firebaseReady) {
         try {
             const firestoreProgress = await getProgressFromFirestore(currentUser.uid, todayStr, size);
@@ -241,35 +225,27 @@ function loadLevel(level) {
     currentLevel = level;
     isGameActive = true;
 
-    // Reset State
     gridState = Array(level.size).fill().map(() => Array(level.size).fill(0));
 
-    // Clear Board
     boardEl.innerHTML = '';
     boardEl.classList.remove('disabled');
     boardEl.style.opacity = '1';
     statusEl.textContent = `Posiziona ${level.treesPerLine} alber${level.treesPerLine > 1 ? 'i' : 'o'} per riga, colonna e area.`;
     statusEl.className = 'game-status';
 
-    // Set Grid CSS
     boardEl.style.gridTemplateColumns = `repeat(${level.size}, 1fr)`;
 
-    // Render Cells
     for (let r = 0; r < level.size; r++) {
         for (let c = 0; c < level.size; c++) {
             const cell = document.createElement('div');
             cell.classList.add('cell');
 
-            // Region styling
             const regionId = level.regions[r][c];
             cell.classList.add(`region-${regionId % 8}`);
 
-            // Region Borders
-            // Check right neighbor
             if (c < level.size - 1 && level.regions[r][c + 1] !== regionId) {
                 cell.classList.add('border-right-thick');
             }
-            // Check bottom neighbor
             if (r < level.size - 1 && level.regions[r + 1][c] !== regionId) {
                 cell.classList.add('border-bottom-thick');
             }
@@ -277,7 +253,6 @@ function loadLevel(level) {
             cell.dataset.row = r;
             cell.dataset.col = c;
 
-            // Events
             cell.addEventListener('mousedown', (e) => handleCellClick(e, r, c));
             cell.addEventListener('contextmenu', (e) => e.preventDefault());
 
@@ -287,14 +262,13 @@ function loadLevel(level) {
 }
 
 function saveProgress() {
-    if (!isGameActive || isTrainingMode) return;
+    if (!isGameActive) return;
     const progress = {
         gridState: gridState,
         elapsedTime: elapsedTime
     };
     localStorage.setItem(`alberi_progress_${todayStr}_${currentSize}`, JSON.stringify(progress));
 
-    // Salva anche su Firestore se loggato (con debounce)
     if (currentUser && window.firebaseReady) {
         clearTimeout(window._firestoreProgressTimer);
         window._firestoreProgressTimer = setTimeout(() => {
@@ -307,18 +281,15 @@ function startTimer(resume = false) {
     if (gameTimer) clearInterval(gameTimer);
     gameTimer = null;
     isTimerRunning = false;
-    
+
     if (!resume) elapsedTime = 0;
     updateTimerDisplay(elapsedTime);
-
-    // Rimossa la ripartenza automatica. Il timer attenderà SEMPRE 
-    // il primo clic sulla griglia per ripartire (resumeTimer chiamato in handleCellClick).
 }
 
 function resumeTimer() {
     if (isTimerRunning) return;
     isTimerRunning = true;
-    
+
     startTime = Date.now() - (elapsedTime * 1000);
 
     gameTimer = setInterval(() => {
@@ -344,7 +315,7 @@ function stopTimer() {
 
 function resetLevel() {
     if (!currentLevel) return;
-    if (!isTrainingMode && localStorage.getItem(`alberi_daily_${todayStr}_${currentSize}`)) return; // Can't reset if already won
+    if (localStorage.getItem(`alberi_daily_${todayStr}_${currentSize}`)) return;
 
     gridState = Array(currentLevel.size).fill().map(() => Array(currentLevel.size).fill(0));
     Array.from(boardEl.children).forEach(cell => {
@@ -352,8 +323,6 @@ function resetLevel() {
     });
     statusEl.textContent = "Livello ricominciato.";
     statusEl.className = 'game-status';
-
-    // rimosso startTimer(false): il timer non si azzera se ricominci, continui a pagare il tempo!
     saveProgress();
 }
 
@@ -366,16 +335,13 @@ function handleCellClick(e, r, c) {
 
     let currentVal = gridState[r][c];
 
-    // Prevent default context menu
     if (e.type === 'contextmenu') e.preventDefault();
 
     if (e.button === 0) {
-        // Left Click: Empty -> Cross -> Tree -> Empty
-        if (currentVal === 0) currentVal = 2;      // Empty -> Cross
-        else if (currentVal === 2) currentVal = 1; // Cross -> Tree
-        else currentVal = 0;                       // Tree -> Empty
+        if (currentVal === 0) currentVal = 2;
+        else if (currentVal === 2) currentVal = 1;
+        else currentVal = 0;
     } else if (e.button === 2) {
-        // Right Click: Empty -> Cross -> Empty (Shortcut)
         e.preventDefault();
         if (currentVal === 2) currentVal = 0;
         else currentVal = 2;
@@ -407,8 +373,6 @@ function checkSolution() {
         boardEl.children[index].classList.add('error');
     };
 
-    // Validation Logic
-    // 1. Rows
     for (let r = 0; r < size; r++) {
         let count = 0;
         for (let c = 0; c < size; c++) if (gridState[r][c] === 1) count++;
@@ -417,7 +381,6 @@ function checkSolution() {
             errors.push(`Riga ${r + 1}`);
         }
     }
-    // 2. Cols
     for (let c = 0; c < size; c++) {
         let count = 0;
         for (let r = 0; r < size; r++) if (gridState[r][c] === 1) count++;
@@ -426,7 +389,6 @@ function checkSolution() {
             errors.push(`Colonna ${c + 1}`);
         }
     }
-    // 3. Regions
     let regionCounts = {};
     for (let r = 0; r < size; r++) {
         for (let c = 0; c < size; c++) {
@@ -445,7 +407,6 @@ function checkSolution() {
             errors.push(`Area ${regId}`);
         }
     }
-    // 4. Adjacency
     for (let r = 0; r < size; r++) {
         for (let c = 0; c < size; c++) {
             if (gridState[r][c] !== 1) continue;
@@ -480,54 +441,36 @@ function handleWin() {
     statusEl.textContent = `Fantastico! Hai completato il livello ${currentSize}x${currentSize}! 🎉`;
     statusEl.className = "game-status success";
 
-    if (!isTrainingMode) {
-        // Save Result
-        const result = {
-            date: todayStr,
-            timeSeconds: elapsedTime,
-            size: currentSize
-        };
-        localStorage.setItem(`alberi_daily_${todayStr}_${currentSize}`, JSON.stringify(result));
-        localStorage.removeItem(`alberi_progress_${todayStr}_${currentSize}`);
+    const result = {
+        date: todayStr,
+        timeSeconds: elapsedTime,
+        size: currentSize
+    };
+    localStorage.setItem(`alberi_daily_${todayStr}_${currentSize}`, JSON.stringify(result));
+    localStorage.removeItem(`alberi_progress_${todayStr}_${currentSize}`);
 
-        // Salva su Firestore se loggato
-        if (currentUser && window.firebaseReady) {
-            saveCompletionToFirestore(currentUser.uid, todayStr, currentSize, elapsedTime);
-            removeProgressFromFirestore(currentUser.uid, todayStr, currentSize);
-        }
-
-        // Update Selector Status
-        renderSizeSelector();
-
-        // Show Share UI
-        showShareUI();
-    } else {
-        btnCheck.style.display = 'none';
-        btnReset.style.display = 'none';
-        statusEl.textContent += " (Allenamento Completato)";
+    if (currentUser && window.firebaseReady) {
+        saveCompletionToFirestore(currentUser.uid, todayStr, currentSize, elapsedTime);
+        removeProgressFromFirestore(currentUser.uid, todayStr, currentSize);
     }
 
-    // Disable board interactions (visual only)
+    renderSizeSelector();
+    showShareUI();
+
     boardEl.classList.add('disabled');
 }
 
 function showCompletedState(data, size) {
-    // Generate view-only board
     const seed = `${todayStr}_${size}`;
     const level = window.LevelGenerator.generate(size, seed);
 
     loadLevel(level);
 
-    // Fill with empty/decorative state or just show it empty?
-    // Let's just show it empty but "locked".
-    // Alternatively, we could save the "moves" to show the completed state, but we didn't save that.
-    // So just show the empty board and the time.
-
     isGameActive = false;
     boardEl.classList.add('disabled');
     boardEl.style.opacity = '0.6';
 
-    statusEl.textContent = `Hai già completato il livello ${size}x${size}! Tempo: ${formatTime(data.timeSeconds)} 🌟`;
+    statusEl.textContent = `Hai gia' completato il livello ${size}x${size}! Tempo: ${formatTime(data.timeSeconds)} 🌟`;
     statusEl.className = "game-status success";
 
     updateTimerDisplay(data.timeSeconds);
@@ -544,37 +487,26 @@ function showShareUI() {
     btnCheck.style.display = 'none';
     btnReset.style.display = 'none';
     shareContainer.style.display = 'block';
-
-    // Pre-fill username from auth or localStorage
-    if (currentUser && currentUser.displayName) {
-        usernameInput.value = currentUser.displayName;
-    } else {
-        const savedName = localStorage.getItem('alberi_username');
-        if (savedName) usernameInput.value = savedName;
-    }
 }
 
 function shareResult() {
-    const name = usernameInput.value.trim() || "Un giocatore";
-    localStorage.setItem('alberi_username', name);
-
+    const name = (currentUser && currentUser.displayName) || 'Un giocatore';
     const timeStr = formatTime(elapsedTime);
-    
     const playDate = new Date(todayStr).toLocaleDateString('it-IT');
-    
+
     let levelTitle = `l'Alberi Daily (${currentSize}x${currentSize})`;
     if (currentSize === 12) {
         levelTitle = `la Sfida Domenicale (12x12)`;
     }
 
     const text = `Ho risolto ${levelTitle} del ${playDate} in ${timeStr}! 🌲\nGiocatore: ${name}\n#AlberiDaily`;
-    
+
     if (navigator.share) {
         navigator.share({
             title: 'Alberi Daily',
             text: text,
             url: window.location.href
-        }).catch(err => {
+        }).catch(() => {
             copyToClipboard(text);
         });
     } else {
@@ -584,7 +516,6 @@ function shareResult() {
 
 function copyToClipboard(text) {
     navigator.clipboard.writeText(text).then(() => {
-        const originalText = btnShare.textContent;
         btnShare.textContent = "Copiato!";
         btnShare.style.backgroundColor = "#27ae60";
         setTimeout(() => {
@@ -602,34 +533,6 @@ function triggerConfetti() {
             origin: { y: 0.6 }
         });
     }
-}
-
-function loadTrainingLevel() {
-    isTrainingMode = true;
-    
-    if (mainTitleEl) mainTitleEl.textContent = "Allenamento Libero 🏋️";
-    if (mainSubtitleEl) mainSubtitleEl.textContent = "Sfide casuali illimitate senza salvataggio record.";
-    if (dateDisplayEl) {
-        dateDisplayEl.textContent = `Griglia casuale ${currentSize}x${currentSize}`;
-        dateDisplayEl.style.display = 'inline';
-    }
-    
-    if (archiveDateEl) archiveDateEl.style.display = 'none';
-    if (archiveLabel) archiveLabel.style.display = 'none';
-
-    if (shareContainer) shareContainer.style.display = 'none';
-    btnCheck.style.display = 'inline-block';
-    btnReset.style.display = 'inline-block';
-
-    document.querySelectorAll('.size-btn').forEach(b => b.classList.remove('active'));
-
-    dateDisplayEl.textContent = `Allenamento ${currentSize}x${currentSize}`;
-
-    const seed = Math.random().toString(36).substring(2, 8);
-    const level = window.LevelGenerator.generate(currentSize, seed);
-    loadLevel(level);
-
-    startTimer(false);
 }
 
 // Start
