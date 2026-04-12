@@ -10,21 +10,31 @@
 </head>
 
 <body>
-
     <div class="app-container">
         <header>
-            <h1>Alberi</h1>
-            <p>Un gioco di logica ispirato a <a href="https://www.giorgiodendi.com/alberi/" target="_blank">Giorgio
-                    Dendi</a></p>
+            <div id="auth-container" class="auth-container"></div>
+            <h1 id="main-title">Alberi Daily 🌲</h1>
+            <p id="main-subtitle">Un nuovo puzzle ogni giorno!</p>
+            <div id="daily-info" style="display: flex; gap: 0.5rem; justify-content: center; align-items: center; margin-top: 0.5rem; background: #f8f9fa; padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid #eee; flex-wrap: wrap;">
+                <span id="date-display" style="display: none;"></span>
+                <label for="archive-date" id="archive-label" style="cursor: pointer; font-size: 1.2rem;" title="Archivio: scegli una data">📅</label>
+                <input type="date" id="archive-date" style="padding: 0.3rem; border-radius: 4px; border: 1px solid #ccc; font-family: inherit;">
+                <span id="timer-display" style="font-weight: bold; margin-left: 0.5rem;">00:00</span>
+            </div>
         </header>
 
-        <section class="game-controls">
-            <select id="level-select">
-                <!-- Options populated by JS -->
-            </select>
-            <button id="btn-reset" class="btn secondary">Ricomincia</button>
+        <div class="game-controls">
+            <div id="size-selector" style="margin-bottom: 1rem; width: 100%; display: flex; justify-content: center; gap: 0.5rem; flex-wrap: wrap;"></div>
             <button id="btn-check" class="btn primary">Controlla</button>
-        </section>
+            <button id="btn-reset" class="btn secondary">Ricomincia</button>
+            <button id="btn-training" class="btn secondary" style="background-color: #9b59b6; color: white; border-color: #9b59b6;">Allenamento Libero</button>
+        </div>
+
+        <div id="share-container" style="display: none; margin-bottom: 1rem;">
+            <input type="text" id="username-input" placeholder="Il tuo nome" maxlength="15"
+                style="padding: 0.5rem; border-radius: 4px; border: 1px solid #ddd;">
+            <button id="btn-share" class="btn primary" style="background-color: #3498db;">Condividi Risultato 📤</button>
+        </div>
 
         <div class="game-status" id="status-msg">Posiziona gli alberi: 1 per righe, colonne e aree colorate.</div>
 
@@ -33,8 +43,8 @@
         </main>
 
         <div class="rules-hint">
-            <p><strong>Regole:</strong> Clic sinistro = Albero <span class="icon">🌳</span> | Clic destro = Erba <span
-                    class="icon">❌</span></p>
+            <p><strong>Regole:</strong> Clicca per ciclare: Croce <span class="icon">❌</span> -> Albero <span class="icon">🌳</span> -> Vuoto.</p>
+            <p>Su PC puoi usare il Tasto Destro per mettere subito l'Erba.</p>
             <p>Non posizionare alberi adiacenti (neanche in diagonale).</p>
         </div>
 
@@ -43,9 +53,59 @@
         </footer>
     </div>
 
+    <!-- Modale Login / Registrazione -->
+    <div id="auth-modal" class="modal">
+        <div class="modal-content">
+            <div class="auth-tabs">
+                <button id="tab-login" class="auth-tab active" onclick="switchAuthTab('login')">Accedi</button>
+                <button id="tab-register" class="auth-tab" onclick="switchAuthTab('register')">Registrati</button>
+            </div>
+
+            <form id="login-form" onsubmit="handleLogin(event)">
+                <input type="email" id="login-email" class="large-input" placeholder="Email" autocomplete="email">
+                <input type="password" id="login-password" class="large-input" placeholder="Password" autocomplete="current-password">
+                <p id="login-error" class="auth-error"></p>
+                <div class="modal-actions">
+                    <button type="submit" class="btn primary">Accedi</button>
+                    <button type="button" class="btn secondary" onclick="hideAuthModal()">Annulla</button>
+                </div>
+            </form>
+
+            <form id="register-form" style="display: none;" onsubmit="handleRegister(event)">
+                <input type="text" id="register-name" class="large-input" placeholder="Il tuo nome" maxlength="20" autocomplete="name">
+                <input type="email" id="register-email" class="large-input" placeholder="Email" autocomplete="email">
+                <input type="password" id="register-password" class="large-input" placeholder="Password (min 6 caratteri)" autocomplete="new-password">
+                <p id="register-error" class="auth-error"></p>
+                <div class="modal-actions">
+                    <button type="submit" class="btn primary">Registrati</button>
+                    <button type="button" class="btn secondary" onclick="hideAuthModal()">Annulla</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modale Statistiche -->
+    <div id="stats-modal" class="modal">
+        <div class="modal-content">
+            <h2 style="margin-bottom: 1rem;">Le tue Statistiche</h2>
+            <div id="stats-content"></div>
+            <div class="modal-actions" style="margin-top: 1.5rem;">
+                <button class="btn secondary" onclick="hideStatsModal()">Chiudi</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
-    <script src="levels.js"></script>
+    <script src="firebase-config.js"></script>
+    <script src="utils.js"></script>
     <script src="generator.js"></script>
+    <script src="firestore-sync.js"></script>
+    <script src="auth.js"></script>
     <script src="script.js"></script>
 </body>
 
