@@ -1,5 +1,5 @@
 // ============================================================
-// AUTH.JS - Sistema Login / Registrazione (Login Obbligatorio)
+// AUTH.JS - Login Obbligatorio (tutto nell'overlay)
 // ============================================================
 
 let currentUser = null;
@@ -7,7 +7,6 @@ let currentUser = null;
 function initAuth() {
     if (!window.firebaseReady) {
         showLoginOverlay();
-        updateAuthUI(null);
         return;
     }
 
@@ -55,23 +54,12 @@ function updateAuthUI(user) {
     }
 }
 
-function showAuthModal() {
-    const modal = document.getElementById('auth-modal');
-    if (modal) modal.classList.add('show');
-    switchAuthTab('login');
-}
-
-function hideAuthModal() {
-    const modal = document.getElementById('auth-modal');
-    if (modal) modal.classList.remove('show');
-    clearAuthErrors();
-}
-
-function switchAuthTab(tab) {
-    const loginForm = document.getElementById('login-form');
-    const registerForm = document.getElementById('register-form');
-    const tabLogin = document.getElementById('tab-login');
-    const tabRegister = document.getElementById('tab-register');
+// Tab switching nell'overlay
+function switchOverlayTab(tab) {
+    const loginForm = document.getElementById('overlay-login-form');
+    const registerForm = document.getElementById('overlay-register-form');
+    const tabLogin = document.getElementById('overlay-tab-login');
+    const tabRegister = document.getElementById('overlay-tab-register');
 
     if (tab === 'login') {
         loginForm.style.display = 'block';
@@ -104,7 +92,6 @@ async function handleLogin(e) {
 
     try {
         await firebaseAuth.signInWithEmailAndPassword(email, password);
-        hideAuthModal();
     } catch (err) {
         errorEl.textContent = getAuthErrorMessage(err.code);
     }
@@ -140,10 +127,33 @@ async function handleRegister(e) {
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
         }
-
-        hideAuthModal();
     } catch (err) {
         errorEl.textContent = getAuthErrorMessage(err.code);
+    }
+}
+
+async function handleGoogleLogin() {
+    if (!window.firebaseReady) return;
+
+    try {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        const result = await firebaseAuth.signInWithPopup(provider);
+
+        // Se e' la prima volta, salva il profilo
+        if (result.additionalUserInfo && result.additionalUserInfo.isNewUser) {
+            const user = result.user;
+            const nickname = user.displayName || user.email.split('@')[0];
+            if (firebaseDb) {
+                await firebaseDb.collection('users').doc(user.uid).set({
+                    nickname: nickname,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            }
+        }
+    } catch (err) {
+        console.error('Errore Google login:', err);
+        const errorEl = document.getElementById('login-error');
+        if (errorEl) errorEl.textContent = getAuthErrorMessage(err.code);
     }
 }
 
@@ -164,7 +174,10 @@ function getAuthErrorMessage(code) {
         'auth/user-not-found': 'Utente non trovato.',
         'auth/wrong-password': 'Password errata.',
         'auth/too-many-requests': 'Troppi tentativi. Riprova piu\' tardi.',
-        'auth/invalid-credential': 'Credenziali non valide.'
+        'auth/invalid-credential': 'Credenziali non valide.',
+        'auth/popup-closed-by-user': 'Popup chiuso. Riprova.',
+        'auth/cancelled-popup-request': 'Richiesta annullata.',
+        'auth/popup-blocked': 'Popup bloccato dal browser. Abilita i popup per questo sito.'
     };
     return messages[code] || 'Errore di autenticazione. Riprova.';
 }
