@@ -86,6 +86,19 @@
         </footer>
     </div>
 
+    <!-- Modale scelta Nickname (dopo Google login) -->
+    <div id="nickname-modal" class="modal">
+        <div class="modal-content">
+            <h2>Scegli il tuo Nickname</h2>
+            <p style="color: #666; margin: 0.5rem 0 1rem;">Questo nome sara' visibile in classifica.</p>
+            <form onsubmit="saveNickname(event)">
+                <input type="text" id="nickname-input" class="large-input" placeholder="Il tuo nickname" maxlength="20" minlength="2">
+                <p id="nickname-error" class="auth-error"></p>
+                <button type="submit" class="btn primary" style="width: 100%;">Conferma</button>
+            </form>
+        </div>
+    </div>
+
     <!-- Modale Statistiche -->
     <div id="stats-modal" class="modal">
         <div class="modal-content">

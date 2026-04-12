@@ -12,14 +12,15 @@ function initAuth() {
 
     // Gestisci ritorno da Google redirect
     firebaseAuth.getRedirectResult().then(async (result) => {
-        if (result && result.user && result.additionalUserInfo && result.additionalUserInfo.isNewUser) {
+        if (result && result.user) {
             const user = result.user;
-            const nickname = user.displayName || user.email.split('@')[0];
+            // Controlla se l'utente ha gia' un profilo con nickname su Firestore
             if (firebaseDb) {
-                await firebaseDb.collection('users').doc(user.uid).set({
-                    nickname: nickname,
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                });
+                const doc = await firebaseDb.collection('users').doc(user.uid).get();
+                if (!doc.exists || !doc.data().nickname) {
+                    // Nuovo utente Google: mostra modale per scegliere nickname
+                    showNicknameModal();
+                }
             }
         }
     }).catch(err => {
@@ -290,4 +291,44 @@ function calculateStreak(dateSet) {
 function hideStatsModal() {
     const modal = document.getElementById('stats-modal');
     if (modal) modal.classList.remove('show');
+}
+
+// Nickname modal (per utenti Google al primo accesso)
+function showNicknameModal() {
+    const modal = document.getElementById('nickname-modal');
+    if (modal) modal.classList.add('show');
+    const input = document.getElementById('nickname-input');
+    if (input) input.focus();
+}
+
+async function saveNickname(e) {
+    e.preventDefault();
+    const nickname = document.getElementById('nickname-input').value.trim();
+    const errorEl = document.getElementById('nickname-error');
+
+    if (!nickname || nickname.length < 2) {
+        errorEl.textContent = 'Il nickname deve avere almeno 2 caratteri.';
+        return;
+    }
+
+    try {
+        // Aggiorna displayName su Firebase Auth
+        await currentUser.updateProfile({ displayName: nickname });
+
+        // Salva su Firestore
+        if (firebaseDb) {
+            await firebaseDb.collection('users').doc(currentUser.uid).set({
+                nickname: nickname,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+        }
+
+        // Chiudi modale e aggiorna UI
+        const modal = document.getElementById('nickname-modal');
+        if (modal) modal.classList.remove('show');
+        updateAuthUI(currentUser);
+    } catch (err) {
+        console.error('Errore salvataggio nickname:', err);
+        errorEl.textContent = 'Errore nel salvataggio. Riprova.';
+    }
 }
