@@ -152,14 +152,33 @@ async function handleRegister(e) {
 async function handleGoogleLogin() {
     if (!window.firebaseReady) return;
 
+    const provider = new firebase.auth.GoogleAuthProvider();
+    const errorEl = document.getElementById('login-error');
+
     try {
-        const provider = new firebase.auth.GoogleAuthProvider();
-        // Usa redirect invece di popup (piu' affidabile su GitHub Pages)
-        await firebaseAuth.signInWithRedirect(provider);
+        // Prova prima con popup (piu' affidabile su GitHub Pages)
+        const result = await firebaseAuth.signInWithPopup(provider);
+
+        // Se nuovo utente, mostra modale per scegliere nickname
+        if (result && result.user && firebaseDb) {
+            const doc = await firebaseDb.collection('users').doc(result.user.uid).get();
+            if (!doc.exists || !doc.data().nickname) {
+                showNicknameModal();
+            }
+        }
     } catch (err) {
-        console.error('Errore Google login:', err);
-        const errorEl = document.getElementById('login-error');
-        if (errorEl) errorEl.textContent = getAuthErrorMessage(err.code);
+        console.error('Errore Google login (popup):', err);
+
+        // Se il popup e' bloccato, fallback a redirect
+        if (err.code === 'auth/popup-blocked' || err.code === 'auth/popup-closed-by-user') {
+            try {
+                await firebaseAuth.signInWithRedirect(provider);
+            } catch (redirectErr) {
+                if (errorEl) errorEl.textContent = getAuthErrorMessage(redirectErr.code);
+            }
+        } else {
+            if (errorEl) errorEl.textContent = getAuthErrorMessage(err.code);
+        }
     }
 }
 
