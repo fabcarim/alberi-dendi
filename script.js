@@ -56,6 +56,20 @@ function init() {
 
     renderSizeSelector();
     loadDailyLevel(5);
+
+    // Analytics: app_open
+    try {
+        const referral = (typeof getReferralSource === 'function') ? getReferralSource() : null;
+        const params = new URLSearchParams(window.location.search);
+        const openParams = {
+            referrer: document.referrer || '',
+            utm_source: params.get('utm_source') || '',
+            utm_medium: params.get('utm_medium') || '',
+            utm_campaign: params.get('utm_campaign') || ''
+        };
+        if (referral) openParams.referral_source = referral;
+        if (typeof trackEvent === 'function') trackEvent('app_open', openParams);
+    } catch (e) { /* silent */ }
 }
 
 function renderSizeSelector() {
@@ -180,6 +194,18 @@ async function loadDailyLevel(size) {
     const seed = `${todayStr}_${size}`;
     const level = window.LevelGenerator.generate(size, seed);
     loadLevel(level);
+
+    // Analytics: puzzle_start
+    try {
+        const realtimeStr = new Date().toISOString().split('T')[0];
+        if (typeof trackEvent === 'function') {
+            trackEvent('puzzle_start', {
+                size: size,
+                date: todayStr,
+                is_archive: todayStr !== realtimeStr
+            });
+        }
+    } catch (e) { /* silent */ }
 
     // Load progress
     let progressLoaded = false;
@@ -458,6 +484,19 @@ function handleWin() {
     showShareUI();
 
     boardEl.classList.add('disabled');
+
+    // Analytics: puzzle_complete
+    try {
+        const realtimeStr = new Date().toISOString().split('T')[0];
+        if (typeof trackEvent === 'function') {
+            trackEvent('puzzle_complete', {
+                size: currentSize,
+                date: todayStr,
+                time_seconds: elapsedTime,
+                is_archive: todayStr !== realtimeStr
+            });
+        }
+    } catch (e) { /* silent */ }
 }
 
 function showCompletedState(data, size) {
@@ -499,18 +538,39 @@ function shareResult() {
         levelTitle = `la Sfida Domenicale (12x12)`;
     }
 
+    // Costruisci URL con parametri UTM per attribuzione K-factor
+    const ref = (currentUser && currentUser.uid) ? currentUser.uid : 'anon';
+    const baseUrl = window.location.origin + window.location.pathname;
+    const shareUrl = baseUrl + '?utm_source=share&utm_medium=user&utm_campaign=alberi_daily&ref=' + encodeURIComponent(ref);
+
     const text = `Ho risolto ${levelTitle} del ${playDate} in ${timeStr}! 🌲\nGiocatore: ${name}\n#AlberiDaily`;
+
+    const logShare = (method) => {
+        try {
+            if (typeof trackEvent === 'function') {
+                trackEvent('share_tap', {
+                    size: currentSize,
+                    date: todayStr,
+                    method: method
+                });
+            }
+        } catch (e) { /* silent */ }
+    };
 
     if (navigator.share) {
         navigator.share({
             title: 'Alberi Daily',
             text: text,
-            url: window.location.href
+            url: shareUrl
+        }).then(() => {
+            logShare('native');
         }).catch(() => {
-            copyToClipboard(text);
+            copyToClipboard(text + '\n' + shareUrl);
+            logShare('clipboard');
         });
     } else {
-        copyToClipboard(text);
+        copyToClipboard(text + '\n' + shareUrl);
+        logShare('clipboard');
     }
 }
 

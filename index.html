@@ -83,7 +83,21 @@
 
         <footer>
             <p>Developed with AI. Idea originale &copy; Giorgio Dendi.</p>
+            <p style="margin-top: 0.5rem; font-size: 0.85rem;"><a href="privacy.html" style="color: #27ae60; text-decoration: none;">Privacy</a></p>
         </footer>
+    </div>
+
+    <!-- Banner consenso cookie/analytics -->
+    <div id="consent-banner" style="display: none; position: fixed; bottom: 0; left: 0; right: 0; background: #2c3e50; color: white; padding: 1rem; z-index: 9999; box-shadow: 0 -4px 12px rgba(0,0,0,0.2); font-family: 'Outfit', sans-serif;">
+        <div style="max-width: 800px; margin: 0 auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem;">
+            <p style="margin: 0; flex: 1 1 300px; font-size: 0.9rem;">
+                Usiamo cookie tecnici e analytics per migliorare l'app. <a href="privacy.html" style="color: #2ecc71; text-decoration: underline;">Leggi la privacy</a>
+            </p>
+            <div style="display: flex; gap: 0.5rem;">
+                <button id="consent-accept" class="btn primary" style="padding: 0.5rem 1rem;">Accetta</button>
+                <button id="consent-deny" class="btn secondary" style="padding: 0.5rem 1rem;">Solo essenziali</button>
+            </div>
+        </div>
     </div>
 
     <!-- Modale scelta Nickname (dopo Google login) -->
@@ -126,6 +140,36 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-analytics-compat.js"></script>
+
+    <!-- Consent banner logic (deve girare prima di firebase-config per decidere se init analytics) -->
+    <script>
+        (function () {
+            var consent = null;
+            try { consent = localStorage.getItem('alberi_consent'); } catch (e) { }
+            if (consent) return; // gia' scelto
+            document.addEventListener('DOMContentLoaded', function () {
+                var banner = document.getElementById('consent-banner');
+                if (banner) banner.style.display = 'block';
+                var accept = document.getElementById('consent-accept');
+                var deny = document.getElementById('consent-deny');
+                if (accept) accept.addEventListener('click', function () {
+                    try { localStorage.setItem('alberi_consent', 'granted'); } catch (e) { }
+                    if (banner) banner.style.display = 'none';
+                    // Attiva analytics ora (senza reload)
+                    try {
+                        if (window.firebaseReady && typeof firebase.analytics === 'function' && !window.firebaseAnalytics) {
+                            window.firebaseAnalytics = firebase.analytics();
+                        }
+                    } catch (e) { }
+                });
+                if (deny) deny.addEventListener('click', function () {
+                    try { localStorage.setItem('alberi_consent', 'denied'); } catch (e) { }
+                    if (banner) banner.style.display = 'none';
+                });
+            });
+        })();
+    </script>
 
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <script src="firebase-config.js"></script>

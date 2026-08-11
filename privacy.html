@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy - Alberi Daily</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        .privacy-container {
+            max-width: 720px;
+            width: 100%;
+            background: white;
+            padding: 2rem;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+            text-align: left;
+            line-height: 1.6;
+        }
+
+        .privacy-container h1 {
+            color: #27ae60;
+            margin-bottom: 0.5rem;
+        }
+
+        .privacy-container h2 {
+            color: #2c3e50;
+            margin-top: 1.5rem;
+            margin-bottom: 0.5rem;
+            font-size: 1.2rem;
+        }
+
+        .privacy-container p,
+        .privacy-container li {
+            color: #34495e;
+            font-size: 0.95rem;
+        }
+
+        .privacy-container ul {
+            margin: 0.5rem 0 0.5rem 1.5rem;
+        }
+
+        .privacy-container a {
+            color: #27ae60;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .privacy-meta {
+            color: #7f8c8d;
+            font-size: 0.85rem;
+            margin-bottom: 1.5rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="privacy-container">
+        <h1>Privacy Policy - Alberi Daily</h1>
+        <p class="privacy-meta">Ultima modifica: 11 agosto 2026</p>
+
+        <p>La presente informativa descrive come Alberi Daily ("l'app") tratta i dati personali degli utenti,
+            in conformita' al Regolamento (UE) 2016/679 (GDPR).</p>
+
+        <h2>1. Titolare del trattamento</h2>
+        <p>Il titolare del trattamento e' il gestore dell'app Alberi Daily. Per qualsiasi richiesta relativa
+            ai tuoi dati puoi contattarci all'indirizzo email indicato nella sezione "Contatti" in fondo a
+            questa pagina.</p>
+
+        <h2>2. Dati raccolti</h2>
+        <ul>
+            <li><strong>Email</strong> e <strong>password</strong> (hash gestito da Firebase Authentication)
+                oppure identita' Google, quando ti registri o accedi.</li>
+            <li><strong>Nickname</strong> scelto in fase di registrazione, visibile nella classifica pubblica.</li>
+            <li><strong>Tempi di gioco e completamenti dei puzzle</strong> (data, dimensione della griglia,
+                tempo di completamento), memorizzati sia in locale sia su Firestore per la classifica e le
+                statistiche personali.</li>
+            <li><strong>Stato di gioco in corso</strong> (griglia parziale, timer) salvato per consentire la
+                ripresa da dove hai lasciato.</li>
+            <li><strong>Eventi di utilizzo anonimi</strong> tramite Firebase Analytics (apertura app,
+                inizio/completamento puzzle, condivisione, iscrizione/login, sorgente referral), solo se
+                hai prestato il consenso.</li>
+        </ul>
+
+        <h2>3. Finalita' del trattamento</h2>
+        <ul>
+            <li>Fornire il servizio di gioco e sincronizzare i tuoi progressi tra dispositivi.</li>
+            <li>Mostrare la classifica pubblica giornaliera.</li>
+            <li>Misurare in forma aggregata l'utilizzo dell'app per valutarne l'evoluzione (solo con consenso).</li>
+        </ul>
+
+        <h2>4. Base giuridica</h2>
+        <p>Il trattamento dei dati di autenticazione e di gioco si fonda sull'<strong>esecuzione del contratto</strong>
+            (art. 6.1.b GDPR) necessaria per fornirti il servizio richiesto. Il trattamento degli eventi
+            analytics si fonda sul <strong>tuo consenso</strong> (art. 6.1.a GDPR), che puoi revocare in
+            qualsiasi momento cancellando i dati di navigazione del browser.</p>
+
+        <h2>5. Responsabile del trattamento (processor)</h2>
+        <p>I dati sono ospitati su <strong>Firebase</strong> (Google LLC / Google Ireland Ltd), che agisce come
+            responsabile del trattamento per conto del titolare. In particolare vengono utilizzati:
+            Firebase Authentication, Cloud Firestore e (con consenso) Firebase Analytics. Google puo'
+            trasferire i dati in Paesi extra-UE con adeguate garanzie contrattuali (Standard Contractual
+            Clauses).</p>
+
+        <h2>6. Conservazione</h2>
+        <p>I dati di account e di gioco sono conservati fintantoche' il tuo account e' attivo. Puoi
+            richiedere in ogni momento la cancellazione dell'account e dei dati associati.</p>
+
+        <h2>7. Diritti dell'utente</h2>
+        <p>Puoi esercitare i seguenti diritti:</p>
+        <ul>
+            <li>Accesso, rettifica e cancellazione dei tuoi dati.</li>
+            <li>Limitazione o opposizione al trattamento.</li>
+            <li>Portabilita' dei dati.</li>
+            <li>Revoca del consenso in ogni momento (limitatamente ai trattamenti basati sul consenso).</li>
+            <li>Reclamo presso l'Autorita' Garante per la protezione dei dati personali
+                (<a href="https://www.garanteprivacy.it" target="_blank" rel="noopener">garanteprivacy.it</a>).</li>
+        </ul>
+
+        <h2>8. Cookie e localStorage</h2>
+        <p>L'app utilizza il <strong>localStorage</strong> del browser per salvare progressi di gioco,
+            preferenze e la tua scelta sul consenso analytics. Non utilizziamo cookie di profilazione
+            di terze parti.</p>
+
+        <h2>9. Contatti</h2>
+        <p>Per esercitare i tuoi diritti o per qualsiasi richiesta relativa alla privacy puoi scriverci
+            tramite l'indirizzo email di contatto pubblicato nella pagina principale del progetto.</p>
+
+        <p style="margin-top: 2rem;"><a href="index.html">&larr; Torna al gioco</a></p>
+    </div>
+</body>
+
+</html>

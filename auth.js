@@ -14,6 +14,7 @@ function initAuth() {
     firebaseAuth.getRedirectResult().then(async (result) => {
         if (result && result.user) {
             const user = result.user;
+            const isNew = !!(result.additionalUserInfo && result.additionalUserInfo.isNewUser);
             // Controlla se l'utente ha gia' un profilo con nickname su Firestore
             if (firebaseDb) {
                 const doc = await firebaseDb.collection('users').doc(user.uid).get();
@@ -22,6 +23,12 @@ function initAuth() {
                     showNicknameModal();
                 }
             }
+            try {
+                const referral = (typeof getReferralSource === 'function') ? getReferralSource() : null;
+                const params = { method: 'google' };
+                if (referral) params.referral_source = referral;
+                if (typeof trackEvent === 'function') trackEvent(isNew ? 'signup' : 'login', params);
+            } catch (e) { /* silent */ }
         }
     }).catch(err => {
         console.error('Errore redirect Google:', err);
@@ -109,6 +116,12 @@ async function handleLogin(e) {
 
     try {
         await firebaseAuth.signInWithEmailAndPassword(email, password);
+        try {
+            const referral = (typeof getReferralSource === 'function') ? getReferralSource() : null;
+            const params = { method: 'email' };
+            if (referral) params.referral_source = referral;
+            if (typeof trackEvent === 'function') trackEvent('login', params);
+        } catch (e) { /* silent */ }
     } catch (err) {
         errorEl.textContent = getAuthErrorMessage(err.code);
     }
@@ -144,6 +157,13 @@ async function handleRegister(e) {
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
         }
+
+        try {
+            const referral = (typeof getReferralSource === 'function') ? getReferralSource() : null;
+            const params = { method: 'email' };
+            if (referral) params.referral_source = referral;
+            if (typeof trackEvent === 'function') trackEvent('signup', params);
+        } catch (e) { /* silent */ }
     } catch (err) {
         errorEl.textContent = getAuthErrorMessage(err.code);
     }
@@ -160,12 +180,22 @@ async function handleGoogleLogin() {
         const result = await firebaseAuth.signInWithPopup(provider);
 
         // Se nuovo utente, mostra modale per scegliere nickname
+        let isNew = false;
+        if (result && result.additionalUserInfo) {
+            isNew = !!result.additionalUserInfo.isNewUser;
+        }
         if (result && result.user && firebaseDb) {
             const doc = await firebaseDb.collection('users').doc(result.user.uid).get();
             if (!doc.exists || !doc.data().nickname) {
                 showNicknameModal();
             }
         }
+        try {
+            const referral = (typeof getReferralSource === 'function') ? getReferralSource() : null;
+            const params = { method: 'google' };
+            if (referral) params.referral_source = referral;
+            if (typeof trackEvent === 'function') trackEvent(isNew ? 'signup' : 'login', params);
+        } catch (e) { /* silent */ }
     } catch (err) {
         console.error('Errore Google login (popup):', err);
 

@@ -18,7 +18,8 @@ const firebaseConfig = {
     projectId: "alberi-daily",
     storageBucket: "alberi-daily.firebasestorage.app",
     messagingSenderId: "594278291229",
-    appId: "1:594278291229:web:dfac0f401a2af308cab3f4"
+    appId: "1:594278291229:web:dfac0f401a2af308cab3f4",
+    measurementId: "G-F30T3WEPSK"
 };
 
 // Inizializza Firebase
@@ -37,11 +38,54 @@ function initFirebase() {
         firebaseAuth = firebase.auth();
         firebaseDb = firebase.firestore();
         window.firebaseReady = true;
+
+        // Analytics: solo se l'utente ha dato consenso.
+        // Auth + Firestore restano sempre attivi (necessari per il gioco).
+        try {
+            const consent = localStorage.getItem('alberi_consent');
+            if (consent === 'granted' && typeof firebase.analytics === 'function') {
+                window.firebaseAnalytics = firebase.analytics();
+                console.log("Firebase Analytics attivo.");
+            } else {
+                window.firebaseAnalytics = null;
+            }
+        } catch (e) {
+            window.firebaseAnalytics = null;
+        }
+
         console.log("Firebase inizializzato correttamente.");
     } catch (e) {
         console.error("Errore inizializzazione Firebase:", e);
         window.firebaseReady = false;
     }
 }
+
+// Helper globale per tracciare eventi (no-op se analytics non e' pronto).
+// Firma: trackEvent(name, params?) — back-compat safe.
+window.trackEvent = function (name, params) {
+    try {
+        if (!name) return;
+        const a = window.firebaseAnalytics;
+        if (!a) return;
+        a.logEvent(name, params || {});
+    } catch (e) { /* silent: mai rompere il gioco per analytics */ }
+};
+
+// Attribuzione: legge utm_source=share dall'URL e la persiste,
+// poi restituisce la referral source corrente (o null).
+window.getReferralSource = function () {
+    try {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('utm_source') === 'share') {
+            const ref = params.get('ref') || 'unknown';
+            const value = 'share:' + ref;
+            localStorage.setItem('alberi_referral', value);
+            return value;
+        }
+        return localStorage.getItem('alberi_referral') || null;
+    } catch (e) {
+        return null;
+    }
+};
 
 initFirebase();
