@@ -5,41 +5,64 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Alberi - Logic Puzzle</title>
+    <meta name="description" content="Alberi Daily: un puzzle di logica ogni giorno. Piazza gli alberi, sfida gli amici e scala la classifica.">
+
+    <!-- Open Graph / anteprima WhatsApp, Telegram, Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Alberi Daily">
+    <meta property="og:title" content="Alberi Daily 🌳 Un puzzle di logica ogni giorno">
+    <meta property="og:description" content="Piazza gli alberi rispettando righe, colonne e aree colorate. Riesci a battere i tuoi amici?">
+    <meta property="og:url" content="https://fabcarim.github.io/alberi-dendi/">
+    <meta property="og:image" content="https://fabcarim.github.io/alberi-dendi/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Griglia del puzzle Alberi con alberi piazzati">
+    <meta property="og:locale" content="it_IT">
+    <meta property="og:locale:alternate" content="en_US">
+
+    <!-- Twitter / X card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Alberi Daily 🌳 Un puzzle di logica ogni giorno">
+    <meta name="twitter:description" content="Piazza gli alberi rispettando righe, colonne e aree colorate. Riesci a battere i tuoi amici?">
+    <meta name="twitter:image" content="https://fabcarim.github.io/alberi-dendi/og-image.png">
+
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
 </head>
 
 <body>
-    <!-- Overlay login obbligatorio -->
-    <div id="login-overlay" class="login-overlay">
+    <!-- Modale login/registrazione (non piu' bloccante: si apre da "Accedi / Registrati") -->
+    <div id="login-overlay" class="login-overlay" onclick="if (event.target === this) hideLoginOverlay()">
         <div class="login-overlay-content">
-            <h1>Alberi Daily 🌲</h1>
-            <p>Un gioco di logica ispirato a Giorgio Dendi</p>
+            <button type="button" class="modal-close" onclick="hideLoginOverlay()" data-i18n-aria-label="auth.close" aria-label="Chiudi">&times;</button>
+            <h1 data-i18n="app.title">Alberi Daily 🌲</h1>
+            <p data-i18n="auth.tagline">Un gioco di logica ispirato a Giorgio Dendi</p>
+            <p id="auth-anon-hint" class="auth-anon-hint" data-i18n="auth.subtitleAnon" style="display: none;"></p>
 
             <div class="auth-tabs" style="margin-top: 1.5rem;">
-                <button id="overlay-tab-login" class="auth-tab active" onclick="switchOverlayTab('login')">Accedi</button>
-                <button id="overlay-tab-register" class="auth-tab" onclick="switchOverlayTab('register')">Registrati</button>
+                <button id="overlay-tab-login" class="auth-tab active" onclick="switchOverlayTab('login')" data-i18n="auth.tabLogin">Accedi</button>
+                <button id="overlay-tab-register" class="auth-tab" onclick="switchOverlayTab('register')" data-i18n="auth.tabRegister">Registrati</button>
             </div>
 
             <form id="overlay-login-form" onsubmit="handleLogin(event)">
-                <input type="email" id="login-email" class="large-input" placeholder="Email" autocomplete="email">
-                <input type="password" id="login-password" class="large-input" placeholder="Password" autocomplete="current-password">
+                <input type="email" id="login-email" class="large-input" placeholder="Email" data-i18n-placeholder="auth.email" autocomplete="email">
+                <input type="password" id="login-password" class="large-input" placeholder="Password" data-i18n-placeholder="auth.password" autocomplete="current-password">
                 <p id="login-error" class="auth-error"></p>
-                <button type="submit" class="btn primary" style="width: 100%;">Accedi</button>
+                <button type="submit" class="btn primary" style="width: 100%;" data-i18n="auth.loginBtn">Accedi</button>
             </form>
 
             <form id="overlay-register-form" style="display: none;" onsubmit="handleRegister(event)">
-                <input type="text" id="register-name" class="large-input" placeholder="Nickname (visibile in classifica)" maxlength="20">
-                <input type="email" id="register-email" class="large-input" placeholder="Email" autocomplete="email">
-                <input type="password" id="register-password" class="large-input" placeholder="Password (min 6 caratteri)" autocomplete="new-password">
+                <input type="text" id="register-name" class="large-input" placeholder="Nickname (visibile in classifica)" data-i18n-placeholder="auth.nicknamePh" maxlength="20">
+                <input type="email" id="register-email" class="large-input" placeholder="Email" data-i18n-placeholder="auth.email" autocomplete="email">
+                <input type="password" id="register-password" class="large-input" placeholder="Password (min 6 caratteri)" data-i18n-placeholder="auth.passwordNew" autocomplete="new-password">
                 <p id="register-error" class="auth-error"></p>
-                <button type="submit" class="btn primary" style="width: 100%;">Registrati</button>
+                <button type="submit" class="btn primary" style="width: 100%;" data-i18n="auth.registerBtn">Registrati</button>
             </form>
 
             <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #eee;">
                 <button class="btn secondary" onclick="handleGoogleLogin()" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
                     <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="" style="width: 20px; height: 20px;">
-                    Accedi con Google
+                    <span data-i18n="auth.google">Accedi con Google</span>
                 </button>
             </div>
         </div>
@@ -47,12 +70,18 @@
 
     <div class="app-container">
         <header>
-            <div id="auth-container" class="auth-container"></div>
-            <h1 id="main-title">Alberi Daily 🌲</h1>
-            <p id="main-subtitle">Un nuovo puzzle ogni giorno!</p>
+            <div class="header-top">
+                <div class="lang-switch" data-i18n-title="lang.switchTitle" title="Lingua">
+                    <button type="button" class="lang-btn" data-lang="it" onclick="setLang('it')" aria-label="Italiano">🇮🇹</button>
+                    <button type="button" class="lang-btn" data-lang="en" onclick="setLang('en')" aria-label="English">🇬🇧</button>
+                </div>
+                <div id="auth-container" class="auth-container"></div>
+            </div>
+            <h1 id="main-title" data-i18n="app.title">Alberi Daily 🌲</h1>
+            <p id="main-subtitle" data-i18n="app.subtitle">Un nuovo puzzle ogni giorno!</p>
             <div id="daily-info" style="display: flex; gap: 0.5rem; justify-content: center; align-items: center; margin-top: 0.5rem; background: #f8f9fa; padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid #eee; flex-wrap: wrap;">
                 <span id="date-display" style="display: none;"></span>
-                <label for="archive-date" id="archive-label" style="cursor: pointer; font-size: 1.2rem;" title="Archivio: scegli una data">📅</label>
+                <label for="archive-date" id="archive-label" style="cursor: pointer; font-size: 1.2rem;" title="Archivio: scegli una data" data-i18n-title="app.archiveLabelTitle">📅</label>
                 <input type="date" id="archive-date" style="padding: 0.3rem; border-radius: 4px; border: 1px solid #ccc; font-family: inherit;">
                 <span id="timer-display" style="font-weight: bold; margin-left: 0.5rem;">00:00</span>
             </div>
@@ -60,66 +89,67 @@
 
         <div class="game-controls">
             <div id="size-selector" style="margin-bottom: 1rem; width: 100%; display: flex; justify-content: center; gap: 0.5rem; flex-wrap: wrap;"></div>
-            <button id="btn-check" class="btn primary">Controlla</button>
-            <button id="btn-reset" class="btn secondary">Ricomincia</button>
-            <button id="btn-leaderboard" class="btn secondary" style="background-color: #f39c12; color: white;">Classifica 🏆</button>
+            <button id="btn-check" class="btn primary" data-i18n="btn.check">Controlla</button>
+            <button id="btn-reset" class="btn secondary" data-i18n="btn.reset">Ricomincia</button>
+            <button id="btn-leaderboard" class="btn secondary" style="background-color: #f39c12; color: white;" data-i18n="btn.leaderboard">Classifica 🏆</button>
         </div>
 
         <div id="share-container" style="display: none; margin-bottom: 1rem;">
-            <button id="btn-share" class="btn primary" style="background-color: #3498db;">Condividi Risultato 📤</button>
+            <button id="btn-share" class="btn primary" style="background-color: #3498db;" data-i18n="btn.share">Condividi Risultato 📤</button>
         </div>
 
-        <div class="game-status" id="status-msg">Posiziona gli alberi: 1 per righe, colonne e aree colorate.</div>
+        <div class="game-status" id="status-msg" data-i18n="status.initial">Posiziona gli alberi: 1 per righe, colonne e aree colorate.</div>
 
         <main class="board-container" id="board">
             <!-- Grid generated by JS -->
         </main>
 
-        <div class="rules-hint">
+        <div class="rules-hint" data-i18n-html="rules.html">
             <p><strong>Regole:</strong> Clicca per ciclare: Croce <span class="icon">❌</span> -> Albero <span class="icon">🌳</span> -> Vuoto.</p>
             <p>Su PC puoi usare il Tasto Destro per mettere subito l'Erba.</p>
             <p>Non posizionare alberi adiacenti (neanche in diagonale).</p>
         </div>
 
         <footer>
-            <p>Developed with AI. Idea originale &copy; Giorgio Dendi.</p>
-            <p style="margin-top: 0.5rem; font-size: 0.85rem;"><a href="privacy.html" style="color: #27ae60; text-decoration: none;">Privacy</a></p>
+            <p data-i18n-html="footer.credits">Developed with AI. Idea originale &copy; Giorgio Dendi.</p>
+            <p style="margin-top: 0.5rem; font-size: 0.85rem;"><a href="privacy.html" style="color: #27ae60; text-decoration: none;" data-i18n="footer.privacy">Privacy</a></p>
         </footer>
     </div>
 
     <!-- Banner consenso cookie/analytics -->
     <div id="consent-banner" style="display: none; position: fixed; bottom: 0; left: 0; right: 0; background: #2c3e50; color: white; padding: 1rem; z-index: 9999; box-shadow: 0 -4px 12px rgba(0,0,0,0.2); font-family: 'Outfit', sans-serif;">
         <div style="max-width: 800px; margin: 0 auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem;">
-            <p style="margin: 0; flex: 1 1 300px; font-size: 0.9rem;">
+            <p style="margin: 0; flex: 1 1 300px; font-size: 0.9rem;" data-i18n-html="consent.text">
                 Usiamo cookie tecnici e analytics per migliorare l'app. <a href="privacy.html" style="color: #2ecc71; text-decoration: underline;">Leggi la privacy</a>
             </p>
             <div style="display: flex; gap: 0.5rem;">
-                <button id="consent-accept" class="btn primary" style="padding: 0.5rem 1rem;">Accetta</button>
-                <button id="consent-deny" class="btn secondary" style="padding: 0.5rem 1rem;">Solo essenziali</button>
+                <button id="consent-accept" class="btn primary" style="padding: 0.5rem 1rem;" data-i18n="consent.accept">Accetta</button>
+                <button id="consent-deny" class="btn secondary" style="padding: 0.5rem 1rem;" data-i18n="consent.deny">Solo essenziali</button>
             </div>
         </div>
     </div>
 
-    <!-- Modale scelta Nickname (dopo Google login) -->
+    <!-- Modale scelta Nickname (dopo Google login, o al primo completamento da anonimo) -->
     <div id="nickname-modal" class="modal">
         <div class="modal-content">
-            <h2>Scegli il tuo Nickname</h2>
-            <p style="color: #666; margin: 0.5rem 0 1rem;">Questo nome sara' visibile in classifica.</p>
+            <h2 data-i18n="nick.title">Scegli il tuo Nickname</h2>
+            <p id="nickname-desc" style="color: #666; margin: 0.5rem 0 1rem;" data-i18n="nick.desc">Questo nome sara' visibile in classifica.</p>
             <form onsubmit="saveNickname(event)">
-                <input type="text" id="nickname-input" class="large-input" placeholder="Il tuo nickname" maxlength="20" minlength="2">
+                <input type="text" id="nickname-input" class="large-input" placeholder="Il tuo nickname" data-i18n-placeholder="nick.placeholder" maxlength="20" minlength="2">
                 <p id="nickname-error" class="auth-error"></p>
-                <button type="submit" class="btn primary" style="width: 100%;">Conferma</button>
+                <button type="submit" class="btn primary" style="width: 100%;" data-i18n="nick.confirm">Conferma</button>
             </form>
+            <button type="button" id="nickname-skip" class="btn secondary" style="width: 100%; margin-top: 0.75rem; display: none;" onclick="skipNickname()" data-i18n="nick.skip">Salta (non comparire in classifica)</button>
         </div>
     </div>
 
     <!-- Modale Statistiche -->
     <div id="stats-modal" class="modal">
         <div class="modal-content">
-            <h2 style="margin-bottom: 1rem;">Le tue Statistiche</h2>
+            <h2 style="margin-bottom: 1rem;" data-i18n="stats.title">Le tue Statistiche</h2>
             <div id="stats-content"></div>
             <div class="modal-actions" style="margin-top: 1.5rem;">
-                <button class="btn secondary" onclick="hideStatsModal()">Chiudi</button>
+                <button class="btn secondary" onclick="hideStatsModal()" data-i18n="btn.close">Chiudi</button>
             </div>
         </div>
     </div>
@@ -127,14 +157,17 @@
     <!-- Modale Classifica -->
     <div id="leaderboard-modal" class="modal">
         <div class="modal-content" style="max-width: 450px;">
-            <h2 style="margin-bottom: 1rem;">Classifica del Giorno 🏆</h2>
+            <h2 style="margin-bottom: 1rem;" data-i18n="lb.title">Classifica del Giorno 🏆</h2>
             <div id="leaderboard-size-tabs" class="leaderboard-tabs"></div>
             <div id="leaderboard-content"></div>
             <div class="modal-actions" style="margin-top: 1.5rem;">
-                <button class="btn secondary" onclick="hideLeaderboardModal()">Chiudi</button>
+                <button class="btn secondary" onclick="hideLeaderboardModal()" data-i18n="btn.close">Chiudi</button>
             </div>
         </div>
     </div>
+
+    <!-- Traduzioni: prima di tutto il resto (applica subito i testi statici) -->
+    <script src="i18n.js"></script>
 
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>

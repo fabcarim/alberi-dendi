@@ -2,12 +2,20 @@
 // FIRESTORE-SYNC.JS - Sincronizzazione progressi + Classifica
 // ============================================================
 
+// Nickname da usare in classifica, o null se l'utente non deve comparire
+// (utente anonimo senza nickname). Utenti registrati: come prima ('Anonimo' di fallback).
+function getLeaderboardNickname() {
+    if (!currentUser) return null;
+    if (currentUser.isAnonymous && !currentUser.displayName) return null;
+    return sanitizeNickname(currentUser.displayName || 'Anonimo');
+}
+
 // Salva un completamento su Firestore (profilo utente + classifica pubblica)
 async function saveCompletionToFirestore(uid, date, size, timeSeconds) {
     if (!window.firebaseReady || !firebaseDb || !uid) return;
 
     const docId = `${date}_${size}`;
-    const nickname = (currentUser && currentUser.displayName) || 'Anonimo';
+    const nickname = getLeaderboardNickname();
 
     try {
         // Salva nel profilo utente
@@ -21,19 +29,81 @@ async function saveCompletionToFirestore(uid, date, size, timeSeconds) {
                 completedAt: firebase.firestore.FieldValue.serverTimestamp()
             }, { merge: true });
 
-        // Salva nella classifica pubblica
+        // Salva nella classifica pubblica (solo se l'utente ha un nickname)
+        if (nickname) {
+            await saveLeaderboardEntry(uid, date, size, timeSeconds, nickname);
+        }
+    } catch (err) {
+        console.error('Errore salvataggio Firestore:', err);
+    }
+}
+
+// Scrive (o aggiorna) il record pubblico in classifica.
+// Usato anche quando un anonimo sceglie il nickname dopo aver completato.
+async function saveLeaderboardEntry(uid, date, size, timeSeconds, nickname) {
+    if (!window.firebaseReady || !firebaseDb || !uid) return;
+    try {
         await firebaseDb
-            .collection('leaderboard').doc(docId + '_' + uid)
+            .collection('leaderboard').doc(`${date}_${size}_${uid}`)
             .set({
                 uid: uid,
-                nickname: nickname,
+                nickname: sanitizeNickname(nickname),
                 date: date,
                 size: size,
                 timeSeconds: timeSeconds,
                 completedAt: firebase.firestore.FieldValue.serverTimestamp()
             }, { merge: true });
     } catch (err) {
-        console.error('Errore salvataggio Firestore:', err);
+        console.error('Errore salvataggio classifica:', err);
+    }
+}
+
+// Pubblica in classifica i completamenti locali di oggi (e del puzzle aperto,
+// se d'archivio) col nickname appena scelto. Al massimo 2 date x 7 misure.
+async function publishRecentToLeaderboard(uid, nickname) {
+    if (!window.firebaseReady || !firebaseDb || !uid || !nickname) return;
+    const dates = [localDateStr()];
+    if (typeof todayStr === 'string' && todayStr && dates.indexOf(todayStr) === -1) dates.push(todayStr);
+    const sizes = [5, 6, 7, 8, 9, 10, 12];
+    for (const date of dates) {
+        for (const size of sizes) {
+            try {
+                const raw = localStorage.getItem(`alberi_daily_${date}_${size}`);
+                if (!raw) continue;
+                const data = JSON.parse(raw);
+                if (data && data.timeSeconds !== undefined) {
+                    await saveLeaderboardEntry(uid, date, size, data.timeSeconds, nickname);
+                }
+            } catch (e) { /* ignora */ }
+        }
+    }
+}
+
+// Arrivo da link condiviso: salva in users/{uid} da quale link e' arrivato
+// l'utente (solo se non gia' presente). Indipendente dal consenso GA: serve a
+// contare gli arrivi da share direttamente su Firestore. Una volta per sessione.
+let _shareReferralSaved = false;
+async function saveShareReferral(uid) {
+    if (_shareReferralSaved || !window.firebaseReady || !firebaseDb || !uid) return;
+    let ref = null;
+    try {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('utm_source') !== 'share') return;
+        ref = (params.get('ref') || 'unknown').slice(0, 128);
+    } catch (e) { return; }
+
+    _shareReferralSaved = true;
+    try {
+        const userRef = firebaseDb.collection('users').doc(uid);
+        const doc = await userRef.get();
+        if (doc.exists && doc.data().referral_ref) return;
+        await userRef.set({
+            referral_ref: ref,
+            referral_at: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+    } catch (err) {
+        _shareReferralSaved = false;
+        console.error('Errore salvataggio referral:', err);
     }
 }
 
@@ -176,10 +246,10 @@ async function loadLeaderboard(date, size) {
     const content = document.getElementById('leaderboard-content');
     if (!content) return;
 
-    content.innerHTML = '<p>Caricamento classifica...</p>';
+    content.innerHTML = `<p>${escapeHtml(t('lb.loading'))}</p>`;
 
     if (!window.firebaseReady || !firebaseDb) {
-        content.innerHTML = '<p>Classifica non disponibile.</p>';
+        content.innerHTML = `<p>${escapeHtml(t('lb.unavailable'))}</p>`;
         return;
     }
 
@@ -196,20 +266,22 @@ async function loadLeaderboard(date, size) {
         snapshot.forEach(doc => entries.push(doc.data()));
 
         if (entries.length === 0) {
-            content.innerHTML = '<p style="color: #999; padding: 1rem;">Nessuno ha ancora completato questa sfida oggi. Sii il primo!</p>';
+            content.innerHTML = `<p style="color: #999; padding: 1rem;">${escapeHtml(t('lb.empty'))}</p>`;
             return;
         }
 
         let html = '<div class="leaderboard-list">';
         entries.forEach((entry, i) => {
             const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
-            const m = Math.floor(entry.timeSeconds / 60).toString().padStart(2, '0');
-            const s = (entry.timeSeconds % 60).toString().padStart(2, '0');
+            const secs = Math.max(0, Math.floor(Number(entry.timeSeconds) || 0));
+            const m = Math.floor(secs / 60).toString().padStart(2, '0');
+            const s = (secs % 60).toString().padStart(2, '0');
             const isMe = currentUser && entry.uid === currentUser.uid;
+            // Nickname e' un dato utente: SEMPRE escapato (XSS)
             html += `
                 <div class="leaderboard-row ${isMe ? 'leaderboard-me' : ''}">
                     <span class="leaderboard-rank">${medal}</span>
-                    <span class="leaderboard-name">${entry.nickname || 'Anonimo'}</span>
+                    <span class="leaderboard-name">${escapeHtml(entry.nickname || t('lb.anonymous'))}</span>
                     <span class="leaderboard-time">${m}:${s}</span>
                 </div>
             `;
@@ -218,7 +290,7 @@ async function loadLeaderboard(date, size) {
         content.innerHTML = html;
     } catch (err) {
         console.error('Errore caricamento classifica:', err);
-        content.innerHTML = '<p>Errore nel caricamento della classifica. Potrebbe servire un indice Firestore.</p>';
+        content.innerHTML = `<p>${escapeHtml(t('lb.error'))}</p>`;
     }
 }
 

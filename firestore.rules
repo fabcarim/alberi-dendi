@@ -1,0 +1,62 @@
+rules_version = '2';
+
+// ============================================================
+// Regole Firestore - Alberi Daily
+// ============================================================
+// Schema usato dal client (vedi firestore-sync.js / auth.js):
+//   users/{uid}                              profilo: nickname, createdAt, referral_ref, referral_at
+//   users/{uid}/completions/{date_size}      completamenti
+//   users/{uid}/progress/{progress_date_size} partite in corso
+//   leaderboard/{date_size_uid}              classifica pubblica
+// Valgono anche per gli utenti anonimi (Firebase Anonymous Auth):
+// request.auth.uid esiste anche per loro.
+// NON deployate automaticamente: vedi PROJECT_STATE.md.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    // Profilo e sottocollezioni: solo il proprietario
+    match /users/{uid} {
+      allow read, write: if isOwner(uid);
+
+      match /{document=**} {
+        allow read, write: if isOwner(uid);
+      }
+    }
+
+    // Classifica pubblica
+    match /leaderboard/{docId} {
+      allow read: if true;
+
+      allow create, update: if request.auth != null
+        && validLeaderboardEntry(docId, request.resource.data);
+
+      allow delete: if false;
+    }
+
+    function validLeaderboardEntry(docId, data) {
+      return data.keys().hasOnly(['uid', 'nickname', 'date', 'size', 'timeSeconds', 'completedAt'])
+        && data.keys().hasAll(['uid', 'nickname', 'date', 'size', 'timeSeconds'])
+        && data.uid == request.auth.uid
+        // docId = {date}_{size}_{uid}: termina con _uid e combacia coi campi
+        && docId.matches('.*_' + request.auth.uid)
+        && data.date is string
+        && data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && data.size is int
+        && data.size in [5, 6, 7, 8, 9, 10, 12]
+        && docId == data.date + '_' + string(data.size) + '_' + request.auth.uid
+        && data.timeSeconds is int
+        && data.timeSeconds >= 5
+        && data.timeSeconds <= 86400
+        && data.nickname is string
+        && data.nickname.size() >= 1
+        && data.nickname.size() <= 20
+        && !data.nickname.matches('.*[<>].*')
+        && (!('completedAt' in data) || data.completedAt is timestamp);
+    }
+  }
+}

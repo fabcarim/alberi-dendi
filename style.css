@@ -540,9 +540,9 @@ footer {
     }
 }
 
-/* Login Overlay (obbligatorio) */
+/* Modale Login/Registrazione (non piu' bloccante: aperta da "Accedi / Registrati") */
 .login-overlay {
-    display: flex;
+    display: none;
     position: fixed;
     z-index: 900;
     left: 0;
@@ -556,6 +556,9 @@ footer {
 }
 
 .login-overlay-content {
+    position: relative;
+    max-height: 95vh;
+    overflow-y: auto;
     background: white;
     padding: 3rem 2.5rem;
     border-radius: 20px;
@@ -630,4 +633,68 @@ footer {
     font-weight: 700;
     color: #2c3e50;
     font-size: 0.95rem;
-}
+}
+
+/* Chiusura modale login */
+.modal-close {
+    position: absolute;
+    top: 0.6rem;
+    right: 0.9rem;
+    border: none;
+    background: none;
+    font-size: 1.8rem;
+    line-height: 1;
+    color: #95a5a6;
+    cursor: pointer;
+}
+
+.modal-close:hover {
+    color: #2c3e50;
+}
+
+.auth-anon-hint {
+    margin-top: 0.5rem;
+    font-size: 0.85rem !important;
+}
+
+/* Riga superiore header: lingua a sinistra, account a destra */
+.header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.header-top .auth-container {
+    margin-bottom: 0;
+    flex-wrap: wrap;
+}
+
+.lang-switch {
+    display: flex;
+    gap: 0.2rem;
+}
+
+.lang-btn {
+    border: 1px solid transparent;
+    background: none;
+    font-size: 1.1rem;
+    line-height: 1;
+    padding: 0.2rem 0.3rem;
+    border-radius: 6px;
+    cursor: pointer;
+    opacity: 0.45;
+    transition: opacity 0.2s;
+}
+
+.lang-btn:hover {
+    opacity: 0.8;
+}
+
+.lang-btn.active {
+    opacity: 1;
+    border-color: #ddd;
+    background: #f8f9fa;
+}

@@ -190,3 +190,51 @@ const Solver = {
 
 window.SeededRNG = SeededRNG;
 window.Solver = Solver;
+
+// ============================================================
+// HELPER GENERICI (date locali, escape HTML, nickname)
+// ============================================================
+
+// Data in ora LOCALE come 'YYYY-MM-DD' (non UTC: in Italia toISOString
+// cambiava giorno all'1:00/2:00).
+function localDateStr(date) {
+    const d = date || new Date();
+    const y = d.getFullYear();
+    const m = (d.getMonth() + 1).toString().padStart(2, '0');
+    const day = d.getDate().toString().padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
+// Parsing LOCALE di 'YYYY-MM-DD' (new Date('YYYY-MM-DD') e' UTC e sbaglia
+// getDay()/toLocaleDateString a seconda del fuso).
+function parseLocalDate(str) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(str || '');
+    if (!match) return new Date(NaN);
+    return new Date(parseInt(match[1], 10), parseInt(match[2], 10) - 1, parseInt(match[3], 10));
+}
+
+// Escape per ogni dato utente inserito via innerHTML.
+function escapeHtml(value) {
+    return String(value === undefined || value === null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+// Validazione nickname in fase di salvataggio: 2-20 caratteri, niente < >.
+// Ritorna null se valido, altrimenti la chiave i18n dell'errore.
+function validateNickname(nickname) {
+    const n = (nickname || '').trim();
+    if (n.length < 2 || n.length > 20) return 'nick.errLength';
+    if (/[<>]/.test(n)) return 'nick.errChars';
+    return null;
+}
+
+// Nickname "pulito" per la classifica pubblica (le regole Firestore
+// accettano 1-20 caratteri senza < >; i displayName Google possono essere piu' lunghi).
+function sanitizeNickname(nickname) {
+    const n = (nickname || '').replace(/[<>]/g, '').trim().slice(0, 20).trim();
+    return n || 'Anonimo';
+}

@@ -8,6 +8,9 @@ let startTime = 0;
 let elapsedTime = 0;
 let todayStr = "";
 let isTimerRunning = false;
+let lastStatus = null; // ultimo messaggio di stato {key, params, cls} per ritradurlo al cambio lingua
+
+const VALID_SIZES = [5, 6, 7, 8, 9, 10, 12];
 
 // DOM Elements
 const boardEl = document.getElementById('board');
@@ -26,18 +29,62 @@ const archiveLabel = document.getElementById('archive-label');
 const mainTitleEl = document.getElementById('main-title');
 const mainSubtitleEl = document.getElementById('main-subtitle');
 
+// Messaggio di stato tradotto (memorizzato per il cambio lingua)
+function setStatus(key, params, cls) {
+    lastStatus = { key: key, params: params || null, cls: cls || '' };
+    statusEl.textContent = t(key, params);
+    statusEl.className = 'game-status' + (cls ? ' ' + cls : '');
+}
+
+// Primo giorno dell'archivio (6 mesi fa), in ora locale
+function getArchiveMinDateStr() {
+    const minDate = new Date();
+    minDate.setMonth(minDate.getMonth() - 6);
+    return localDateStr(minDate);
+}
+
+// La sfida 12x12 e' disponibile la domenica (dalle 09:00 se e' oggi)
+function isWeeklyUnlocked(dateStr) {
+    const isSunday = parseLocalDate(dateStr).getDay() === 0;
+    if (!isSunday) return false;
+    const realtimeNow = new Date();
+    if (dateStr === localDateStr(realtimeNow)) return realtimeNow.getHours() >= 9;
+    return true;
+}
+
+// Link condiviso: ?d=YYYY-MM-DD&s=N -> apri direttamente quel puzzle se la data
+// e' dentro l'archivio. Ritorna { date, size } oppure null.
+function readSharedPuzzleParams() {
+    try {
+        const params = new URLSearchParams(window.location.search);
+        const d = params.get('d');
+        const sParam = parseInt(params.get('s'), 10);
+        if (!d || !/^\d{4}-\d{2}-\d{2}$/.test(d) || isNaN(parseLocalDate(d).getTime())) return null;
+        if (localDateStr(parseLocalDate(d)) !== d) return null; // es. 2026-02-31
+        if (d < getArchiveMinDateStr() || d > localDateStr()) return null;
+        let size = VALID_SIZES.indexOf(sParam) !== -1 ? sParam : 5;
+        // 12x12: la generazione blocca la pagina per ~1 minuto o piu' (generatore
+        // invariato): a chi arriva da un link non la apriamo in automatico, atterra
+        // sulla data giusta col 5x5 e il pulsante 12x12 e' a un tap.
+        if (size === 12) size = 5;
+        return { date: d, size: size };
+    } catch (e) {
+        return null;
+    }
+}
+
 // Initialize
 function init() {
-    const now = new Date();
-    const realtimeTodayStr = now.toISOString().split('T')[0];
+    const realtimeTodayStr = localDateStr();
     todayStr = realtimeTodayStr;
+
+    const shared = readSharedPuzzleParams();
+    if (shared) todayStr = shared.date;
 
     if (archiveDateEl) {
         archiveDateEl.max = realtimeTodayStr;
-        const minDate = new Date();
-        minDate.setMonth(minDate.getMonth() - 6);
-        archiveDateEl.min = minDate.toISOString().split('T')[0];
-        archiveDateEl.value = realtimeTodayStr;
+        archiveDateEl.min = getArchiveMinDateStr();
+        archiveDateEl.value = todayStr;
 
         archiveDateEl.addEventListener('change', (e) => {
             if (!e.target.value) {
@@ -54,8 +101,13 @@ function init() {
     btnShare.addEventListener('click', shareResult);
     document.getElementById('btn-leaderboard').addEventListener('click', showLeaderboardModal);
 
+    // Cambio lingua: ritraduci le parti generate da JS
+    document.addEventListener('alberi:langchange', refreshDynamicTexts);
+
+    const initialSize = shared ? shared.size : 5;
+    currentSize = initialSize;
     renderSizeSelector();
-    loadDailyLevel(5);
+    loadDailyLevel(initialSize);
 
     // Analytics: app_open
     try {
@@ -99,22 +151,8 @@ function renderSizeSelector() {
         sizeSelectorEl.appendChild(btn);
     });
 
-    // Sfida Settimanale (12x12)
-    const dateObj = new Date(todayStr);
-    const isSunday = dateObj.getDay() === 0;
-
-    const realtimeNow = new Date();
-    const realtimeTodayStr = realtimeNow.toISOString().split('T')[0];
-    const isToday = todayStr === realtimeTodayStr;
-    let isUnlocked = false;
-
-    if (isSunday) {
-        if (isToday) {
-            if (realtimeNow.getHours() >= 9) isUnlocked = true;
-        } else {
-            isUnlocked = true;
-        }
-    }
+    // Sfida Settimanale (12x12) - data in ora locale
+    const isUnlocked = isWeeklyUnlocked(todayStr);
 
     const weeklyBtn = document.createElement('button');
     weeklyBtn.className = 'btn secondary size-btn special-btn';
@@ -144,8 +182,7 @@ function renderSizeSelector() {
 
     weeklyBtn.onclick = () => {
         if (!isUnlocked && !savedDataWeekly) {
-            statusEl.textContent = "La Sfida Speciale si sblocca Domenica alle 09:00!";
-            statusEl.className = "game-status error";
+            setStatus('status.weeklyLocked', null, 'error');
             return;
         }
         loadDailyLevel(12);
@@ -154,21 +191,33 @@ function renderSizeSelector() {
     sizeSelectorEl.appendChild(weeklyBtn);
 }
 
+// Titolo/sottotitolo: oggi oppure archivio (data formattata nella lingua scelta)
+function updateHeaderTitle() {
+    const realtimeTodayStr = localDateStr();
+
+    if (todayStr === realtimeTodayStr) {
+        if (mainTitleEl) mainTitleEl.textContent = t('app.title');
+        if (mainSubtitleEl) mainSubtitleEl.textContent = t('app.subtitle');
+    } else {
+        if (mainTitleEl) mainTitleEl.textContent = t('app.archiveTitle');
+        const opts = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+        const dateFormatted = parseLocalDate(todayStr).toLocaleDateString(getLocale(), opts);
+        if (mainSubtitleEl) mainSubtitleEl.innerHTML = t('app.archiveSubtitle', { date: escapeHtml(dateFormatted) });
+    }
+}
+
+// Dopo il cambio lingua: rigenera i testi dinamici senza ricaricare il livello
+function refreshDynamicTexts() {
+    updateHeaderTitle();
+    renderSizeSelector();
+    if (lastStatus) setStatus(lastStatus.key, lastStatus.params, lastStatus.cls);
+    if (typeof updateAuthUI === 'function') updateAuthUI(currentUser);
+}
+
 async function loadDailyLevel(size) {
     currentSize = size;
 
-    const realtimeNow = new Date();
-    const realtimeTodayStr = realtimeNow.toISOString().split('T')[0];
-
-    if (todayStr === realtimeTodayStr) {
-        if (mainTitleEl) mainTitleEl.textContent = "Alberi Daily 🌲";
-        if (mainSubtitleEl) mainSubtitleEl.textContent = "Un nuovo puzzle ogni giorno!";
-    } else {
-        if (mainTitleEl) mainTitleEl.textContent = "Alberi Daily - Archivio 📅";
-        const opts = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-        const dateFormatted = new Date(todayStr).toLocaleDateString('it-IT', opts);
-        if (mainSubtitleEl) mainSubtitleEl.innerHTML = `Stai giocando nel passato: <strong>${dateFormatted}</strong>`;
-    }
+    updateHeaderTitle();
 
     if (archiveDateEl) archiveDateEl.style.display = 'inline-block';
     if (archiveLabel) archiveLabel.style.display = 'inline';
@@ -197,7 +246,7 @@ async function loadDailyLevel(size) {
 
     // Analytics: puzzle_start
     try {
-        const realtimeStr = new Date().toISOString().split('T')[0];
+        const realtimeStr = localDateStr();
         if (typeof trackEvent === 'function') {
             trackEvent('puzzle_start', {
                 size: size,
@@ -256,8 +305,7 @@ function loadLevel(level) {
     boardEl.innerHTML = '';
     boardEl.classList.remove('disabled');
     boardEl.style.opacity = '1';
-    statusEl.textContent = `Posiziona ${level.treesPerLine} alber${level.treesPerLine > 1 ? 'i' : 'o'} per riga, colonna e area.`;
-    statusEl.className = 'game-status';
+    setStatus(level.treesPerLine > 1 ? 'status.placeMany' : 'status.placeOne', { n: level.treesPerLine });
 
     boardEl.style.gridTemplateColumns = `repeat(${level.size}, 1fr)`;
 
@@ -347,8 +395,7 @@ function resetLevel() {
     Array.from(boardEl.children).forEach(cell => {
         cell.classList.remove('tree', 'cross', 'error');
     });
-    statusEl.textContent = "Livello ricominciato.";
-    statusEl.className = 'game-status';
+    setStatus('status.reset');
     saveProgress();
 }
 
@@ -455,8 +502,7 @@ function checkSolution() {
     if (errors.length === 0) {
         handleWin();
     } else {
-        statusEl.textContent = "Ci sono errori. Controlla le caselle rosse.";
-        statusEl.className = "game-status error";
+        setStatus('status.errors', null, 'error');
     }
 }
 
@@ -464,8 +510,7 @@ function handleWin() {
     stopTimer();
     isGameActive = false;
     triggerConfetti();
-    statusEl.textContent = `Fantastico! Hai completato il livello ${currentSize}x${currentSize}! 🎉`;
-    statusEl.className = "game-status success";
+    setStatus('status.win', { size: currentSize }, 'success');
 
     const result = {
         date: todayStr,
@@ -485,9 +530,12 @@ function handleWin() {
 
     boardEl.classList.add('disabled');
 
+    // Anonimo senza nickname: proponi il nickname per la classifica (con "salta")
+    if (typeof maybePromptNicknameAfterWin === 'function') maybePromptNicknameAfterWin();
+
     // Analytics: puzzle_complete
     try {
-        const realtimeStr = new Date().toISOString().split('T')[0];
+        const realtimeStr = localDateStr();
         if (typeof trackEvent === 'function') {
             trackEvent('puzzle_complete', {
                 size: currentSize,
@@ -509,9 +557,10 @@ function showCompletedState(data, size) {
     boardEl.classList.add('disabled');
     boardEl.style.opacity = '0.6';
 
-    statusEl.textContent = `Hai gia' completato il livello ${size}x${size}! Tempo: ${formatTime(data.timeSeconds)} 🌟`;
-    statusEl.className = "game-status success";
+    setStatus('status.alreadyDone', { size: size, time: formatTime(data.timeSeconds) }, 'success');
 
+    // Il tempo condiviso deve essere quello del completamento salvato
+    elapsedTime = data.timeSeconds;
     updateTimerDisplay(data.timeSeconds);
     showShareUI();
 }
@@ -528,22 +577,36 @@ function showShareUI() {
     shareContainer.style.display = 'block';
 }
 
-function shareResult() {
-    const name = (currentUser && currentUser.displayName) || 'Un giocatore';
-    const timeStr = formatTime(elapsedTime);
-    const playDate = new Date(todayStr).toLocaleDateString('it-IT');
-
-    let levelTitle = `l'Alberi Daily (${currentSize}x${currentSize})`;
-    if (currentSize === 12) {
-        levelTitle = `la Sfida Domenicale (12x12)`;
-    }
-
-    // Costruisci URL con parametri UTM per attribuzione K-factor
+// URL di condivisione: UTM per attribuzione + d/s per aprire lo stesso puzzle
+function buildShareUrl() {
     const ref = (currentUser && currentUser.uid) ? currentUser.uid : 'anon';
     const baseUrl = window.location.origin + window.location.pathname;
-    const shareUrl = baseUrl + '?utm_source=share&utm_medium=user&utm_campaign=alberi_daily&ref=' + encodeURIComponent(ref);
+    return baseUrl + '?utm_source=share&utm_medium=user&utm_campaign=alberi_daily' +
+        '&ref=' + encodeURIComponent(ref) +
+        '&d=' + encodeURIComponent(todayStr) +
+        '&s=' + encodeURIComponent(currentSize);
+}
 
-    const text = `Ho risolto ${levelTitle} del ${playDate} in ${timeStr}! 🌲\nGiocatore: ${name}\n#AlberiDaily`;
+// Testo di condivisione spoiler-free: la barra di quadratini e' fissa
+// (lunga quanto la misura della griglia) e non rivela nessuna posizione.
+function buildShareText(shareUrl) {
+    const dateObj = parseLocalDate(todayStr);
+    const dateShort = getLang() === 'it'
+        ? dateObj.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })
+        : dateObj.toLocaleDateString(getLocale(), { month: 'short', day: 'numeric' });
+
+    const title = currentSize === 12
+        ? t('share.titleWeekly', { date: dateShort })
+        : t('share.title', { size: currentSize, date: dateShort });
+    const bar = '🟩'.repeat(currentSize);
+
+    return `${title}\n${t('share.time', { time: formatTime(elapsedTime) })}\n${bar}\n${shareUrl}`;
+}
+
+function shareResult() {
+    const shareUrl = buildShareUrl();
+    // Link DENTRO il testo: alcune app scartano `url` quando c'e' anche `text`
+    const text = buildShareText(shareUrl);
 
     const logShare = (method) => {
         try {
@@ -558,31 +621,51 @@ function shareResult() {
     };
 
     if (navigator.share) {
-        navigator.share({
-            title: 'Alberi Daily',
-            text: text,
-            url: shareUrl
-        }).then(() => {
+        navigator.share({ text: text }).then(() => {
             logShare('native');
-        }).catch(() => {
-            copyToClipboard(text + '\n' + shareUrl);
+        }).catch((err) => {
+            // Annullato dall'utente: niente fallback (non e' una condivisione)
+            if (err && err.name === 'AbortError') return;
+            copyToClipboard(text);
             logShare('clipboard');
         });
     } else {
-        copyToClipboard(text + '\n' + shareUrl);
+        copyToClipboard(text);
         logShare('clipboard');
     }
 }
 
+function showCopiedFeedback() {
+    btnShare.textContent = t('btn.copied');
+    btnShare.style.backgroundColor = "#27ae60";
+    setTimeout(() => {
+        btnShare.textContent = t('btn.share');
+        btnShare.style.backgroundColor = "#3498db";
+    }, 2000);
+}
+
 function copyToClipboard(text) {
-    navigator.clipboard.writeText(text).then(() => {
-        btnShare.textContent = "Copiato!";
-        btnShare.style.backgroundColor = "#27ae60";
-        setTimeout(() => {
-            btnShare.textContent = "Condividi Risultato 📤";
-            btnShare.style.backgroundColor = "#3498db";
-        }, 2000);
-    });
+    // Fallback per browser senza Clipboard API (o contesto non sicuro)
+    const legacyCopy = () => {
+        try {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.setAttribute('readonly', '');
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            const ok = document.execCommand('copy');
+            document.body.removeChild(ta);
+            if (ok) showCopiedFeedback();
+        } catch (e) { /* ignora */ }
+    };
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(showCopiedFeedback).catch(legacyCopy);
+    } else {
+        legacyCopy();
+    }
 }
 
 function triggerConfetti() {
