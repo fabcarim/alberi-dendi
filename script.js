@@ -214,8 +214,70 @@ function refreshDynamicTexts() {
     if (typeof updateAuthUI === 'function') updateAuthUI(currentUser);
 }
 
+// ============================================================
+// Generazione del puzzle
+// ============================================================
+// Il 12x12 e' lento da generare (secondi, a volte decine di secondi):
+//  1. se la domenica e' nella tabella precalcolata (levels12.js) e' istantaneo;
+//  2. altrimenti lo genera un Web Worker, senza bloccare la pagina;
+//  3. se i Worker non sono disponibili, si genera nella pagina come prima.
+// In tutti i casi il puzzle e' identico (stesso generatore, stesso seed).
+let _genWorker = null;
+let _genRequestId = 0;
+const _genPending = {};
+
+function getGenWorker() {
+    if (_genWorker === null) {
+        try {
+            _genWorker = new Worker('gen-worker.js');
+            _genWorker.onmessage = (e) => {
+                const p = _genPending[e.data.id];
+                if (!p) return;
+                delete _genPending[e.data.id];
+                if (e.data.error) p.reject(new Error(e.data.error));
+                else p.resolve(e.data.level);
+            };
+            _genWorker.onerror = () => {
+                Object.keys(_genPending).forEach(id => {
+                    _genPending[id].reject(new Error('worker'));
+                    delete _genPending[id];
+                });
+                _genWorker = false;
+            };
+        } catch (e) {
+            _genWorker = false;
+        }
+    }
+    return _genWorker || null;
+}
+
+function getLevel(size, date) {
+    const seed = `${date}_${size}`;
+    if (size === 12 && window.PRECOMPUTED_12 && window.PRECOMPUTED_12[date]) {
+        return Promise.resolve({
+            id: 'daily_' + seed,
+            name: 'Livello del Giorno',
+            size: 12,
+            treesPerLine: 1,
+            regions: window.PRECOMPUTED_12[date]
+        });
+    }
+    if (size >= 12) {
+        const worker = getGenWorker();
+        if (worker) {
+            const id = ++_genRequestId;
+            return new Promise((resolve, reject) => {
+                _genPending[id] = { resolve, reject };
+                worker.postMessage({ id, size, seed });
+            }).catch(() => window.LevelGenerator.generate(size, seed));
+        }
+    }
+    return Promise.resolve(window.LevelGenerator.generate(size, seed));
+}
+
 async function loadDailyLevel(size) {
     currentSize = size;
+    const requestedDate = todayStr;
 
     updateHeaderTitle();
 
@@ -235,13 +297,27 @@ async function loadDailyLevel(size) {
     // Check if already completed
     const completedData = await isLevelCompleted(todayStr, size);
 
+    // Il 12x12 fuori tabella puo' richiedere tempo: mostra un messaggio e
+    // blocca la griglia vecchia finche' il nuovo puzzle non e' pronto.
+    const slow = size >= 12 && !(window.PRECOMPUTED_12 && window.PRECOMPUTED_12[todayStr]);
+    if (slow) {
+        stopTimer();
+        isGameActive = false;
+        boardEl.classList.add('disabled');
+        boardEl.style.opacity = '0.4';
+        setStatus('status.generating', null, '');
+    }
+
+    const level = await getLevel(size, requestedDate);
+
+    // Nel frattempo l'utente ha cambiato misura o data: ignora questo risultato
+    if (currentSize !== size || todayStr !== requestedDate) return;
+
     if (completedData) {
-        showCompletedState(completedData, size);
+        showCompletedState(completedData, size, level);
         return;
     }
 
-    const seed = `${todayStr}_${size}`;
-    const level = window.LevelGenerator.generate(size, seed);
     loadLevel(level);
 
     // Analytics: puzzle_start
@@ -552,10 +628,7 @@ function handleWin() {
     } catch (e) { /* silent */ }
 }
 
-function showCompletedState(data, size) {
-    const seed = `${todayStr}_${size}`;
-    const level = window.LevelGenerator.generate(size, seed);
-
+function showCompletedState(data, size, level) {
     loadLevel(level);
 
     isGameActive = false;
