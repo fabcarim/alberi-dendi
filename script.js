@@ -9,14 +9,19 @@ let elapsedTime = 0;
 let todayStr = "";
 let isTimerRunning = false;
 let lastStatus = null; // ultimo messaggio di stato {key, params, cls} per ritradurlo al cambio lingua
+let undoStack = []; // mosse della partita corrente: {r, c, prev}
 
 const VALID_SIZES = [5, 6, 7, 8, 9, 10, 12];
+const UNDO_MAX = 1000;          // limite dello stack Annulla
+const LONG_PRESS_MS = 450;      // tocco prolungato = croce
+const LONG_PRESS_MOVE_PX = 10;  // oltre questo spostamento e' uno scroll, non un tocco
 
 // DOM Elements
 const boardEl = document.getElementById('board');
 const statusEl = document.getElementById('status-msg');
 const btnCheck = document.getElementById('btn-check');
 const btnReset = document.getElementById('btn-reset');
+const btnUndo = document.getElementById('btn-undo');
 const dateDisplayEl = document.getElementById('date-display');
 const timerDisplayEl = document.getElementById('timer-display');
 const shareContainer = document.getElementById('share-container');
@@ -98,7 +103,28 @@ function init() {
 
     btnCheck.addEventListener('click', checkSolution);
     btnReset.addEventListener('click', resetLevel);
+    if (btnUndo) btnUndo.addEventListener('click', undoMove);
     btnShare.addEventListener('click', shareResult);
+
+    // Griglia: pointer events delegati (mouse come prima, tocco prolungato = croce)
+    boardEl.addEventListener('pointerdown', onBoardPointerDown);
+    boardEl.addEventListener('pointermove', onBoardPointerMove);
+    boardEl.addEventListener('pointerup', onBoardPointerUp);
+    boardEl.addEventListener('pointercancel', cancelLongPress);
+    boardEl.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    // Ctrl+Z / Cmd+Z = Annulla (non mentre si scrive in un campo)
+    document.addEventListener('keydown', (e) => {
+        if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;
+        if ((e.key || '').toLowerCase() !== 'z') return;
+        const tag = (e.target && e.target.tagName) || '';
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target && e.target.isContentEditable)) return;
+        if (!isGameActive || undoStack.length === 0) return;
+        e.preventDefault();
+        undoMove();
+    });
+
+    if (typeof updateStreakBadge === 'function') updateStreakBadge();
     document.getElementById('btn-leaderboard').addEventListener('click', showLeaderboardModal);
 
     // Cambio lingua: ritraduci le parti generate da JS
@@ -212,6 +238,7 @@ function refreshDynamicTexts() {
     renderSizeSelector();
     if (lastStatus) setStatus(lastStatus.key, lastStatus.params, lastStatus.cls);
     if (typeof updateAuthUI === 'function') updateAuthUI(currentUser);
+    if (typeof updateStreakBadge === 'function') updateStreakBadge();
 }
 
 // ============================================================
@@ -288,6 +315,7 @@ async function loadDailyLevel(size) {
     if (shareContainer) shareContainer.style.display = 'none';
     btnCheck.style.display = 'inline-block';
     btnReset.style.display = 'inline-block';
+    if (btnUndo) btnUndo.style.display = 'inline-block';
 
     document.querySelectorAll('.size-btn').forEach(b => {
         b.classList.remove('active');
@@ -306,6 +334,7 @@ async function loadDailyLevel(size) {
         boardEl.classList.add('disabled');
         boardEl.style.opacity = '0.4';
         setStatus('status.generating', null, '');
+        updateUndoButton();
     }
 
     const level = await getLevel(size, requestedDate);
@@ -375,6 +404,8 @@ async function loadDailyLevel(size) {
 function loadLevel(level) {
     currentLevel = level;
     isGameActive = true;
+    undoStack = [];
+    cancelLongPress();
 
     gridState = Array(level.size).fill().map(() => Array(level.size).fill(0));
 
@@ -402,13 +433,12 @@ function loadLevel(level) {
 
             cell.dataset.row = r;
             cell.dataset.col = c;
-
-            cell.addEventListener('mousedown', (e) => handleCellClick(e, r, c));
-            cell.addEventListener('contextmenu', (e) => e.preventDefault());
+            // Click/tocchi: pointer events delegati su boardEl (vedi init)
 
             boardEl.appendChild(cell);
         }
     }
+    updateUndoButton();
 }
 
 function saveProgress() {
@@ -476,34 +506,140 @@ function resetLevel() {
     Array.from(boardEl.children).forEach(cell => {
         cell.classList.remove('tree', 'cross', 'error');
     });
+    // "Ricomincia" non e' annullabile: svuota lo stack
+    undoStack = [];
+    updateUndoButton();
     setStatus('status.reset');
     saveProgress();
 }
 
+// Back-compat: evento mouse -> azione (sinistro cicla, destro croce)
 function handleCellClick(e, r, c) {
-    if (!isGameActive) return;
+    if (e.button === 0) {
+        applyCellAction(r, c, 'cycle');
+    } else if (e.button === 2) {
+        e.preventDefault();
+        applyCellAction(r, c, 'cross');
+    }
+}
+
+// Unica via per cambiare una cella durante il gioco.
+// 'cycle': Vuoto -> Croce -> Albero -> Vuoto; 'cross': Croce <-> Vuoto.
+function applyCellAction(r, c, action) {
+    if (!isGameActive || !currentLevel) return;
+    if (!gridState[r] || gridState[r][c] === undefined) return;
 
     if (!isTimerRunning) {
         resumeTimer();
     }
 
-    let currentVal = gridState[r][c];
+    const prev = gridState[r][c];
+    let next;
+    if (action === 'cross') {
+        next = prev === 2 ? 0 : 2;
+    } else {
+        next = prev === 0 ? 2 : (prev === 2 ? 1 : 0);
+    }
+    if (next === prev) return;
 
-    if (e.type === 'contextmenu') e.preventDefault();
+    undoStack.push({ r: r, c: c, prev: prev });
+    if (undoStack.length > UNDO_MAX) undoStack.shift();
 
-    if (e.button === 0) {
-        if (currentVal === 0) currentVal = 2;
-        else if (currentVal === 2) currentVal = 1;
-        else currentVal = 0;
-    } else if (e.button === 2) {
-        e.preventDefault();
-        if (currentVal === 2) currentVal = 0;
-        else currentVal = 2;
+    gridState[r][c] = next;
+    updateCellVisual(r, c, next);
+    saveProgress();
+    updateUndoButton();
+    checkAutoWin();
+}
+
+// Annulla l'ultima mossa (anche piu' volte di seguito)
+function undoMove() {
+    if (!isGameActive || !currentLevel || undoStack.length === 0) return;
+    const move = undoStack.pop();
+    gridState[move.r][move.c] = move.prev;
+    updateCellVisual(move.r, move.c, move.prev);
+    saveProgress();
+    updateUndoButton();
+    checkAutoWin();
+}
+
+function updateUndoButton() {
+    if (!btnUndo) return;
+    btnUndo.disabled = !isGameActive || undoStack.length === 0;
+}
+
+// Vittoria automatica: nessun evidenziamento degli errori, solo rilevamento
+function checkAutoWin() {
+    if (isGameActive && currentLevel && isSolved(gridState, currentLevel)) {
+        handleWin();
+    }
+}
+
+// ------------------------------------------------------------
+// Input dalla griglia (pointer events)
+// Mouse: come prima (pressione sinistra cicla, destra croce).
+// Tocco/penna: tap = cicla; pressione ~450 ms = croce (+ vibrazione);
+// spostamento oltre soglia o pointercancel (scroll, pinch) = nessun segno.
+// ------------------------------------------------------------
+let _press = null;
+
+function cellPosFromEvent(e) {
+    const cell = e.target && e.target.closest ? e.target.closest('.cell') : null;
+    if (!cell || !boardEl.contains(cell)) return null;
+    const r = parseInt(cell.dataset.row, 10);
+    const c = parseInt(cell.dataset.col, 10);
+    if (isNaN(r) || isNaN(c)) return null;
+    return { r: r, c: c };
+}
+
+function cancelLongPress() {
+    if (_press) {
+        clearTimeout(_press.timer);
+        _press = null;
+    }
+}
+
+function onBoardPointerDown(e) {
+    const pos = cellPosFromEvent(e);
+    if (!pos) return;
+
+    if (e.pointerType === 'mouse') {
+        handleCellClick(e, pos.r, pos.c);
+        return;
     }
 
-    gridState[r][c] = currentVal;
-    updateCellVisual(r, c, currentVal);
-    saveProgress();
+    // Secondo dito (pinch): annulla, nessun segno
+    if (!e.isPrimary) {
+        cancelLongPress();
+        return;
+    }
+    cancelLongPress();
+    if (!isGameActive) return;
+
+    const press = { id: e.pointerId, r: pos.r, c: pos.c, x: e.clientX, y: e.clientY, fired: false, timer: null };
+    press.timer = setTimeout(() => {
+        if (_press !== press) return;
+        press.fired = true;
+        applyCellAction(press.r, press.c, 'cross');
+        try { if (navigator.vibrate) navigator.vibrate(15); } catch (err) { /* ignora */ }
+    }, LONG_PRESS_MS);
+    _press = press;
+}
+
+function onBoardPointerMove(e) {
+    if (!_press || e.pointerId !== _press.id || _press.fired) return;
+    const dx = e.clientX - _press.x;
+    const dy = e.clientY - _press.y;
+    if (dx * dx + dy * dy > LONG_PRESS_MOVE_PX * LONG_PRESS_MOVE_PX) cancelLongPress();
+}
+
+function onBoardPointerUp(e) {
+    if (!_press || e.pointerId !== _press.id) return;
+    const press = _press;
+    clearTimeout(press.timer);
+    _press = null;
+    // Dopo un tocco prolungato il rilascio non fa nulla
+    if (!press.fired) applyCellAction(press.r, press.c, 'cycle');
 }
 
 function updateCellVisual(r, c, val) {
@@ -515,101 +651,123 @@ function updateCellVisual(r, c, val) {
     if (val === 2) cell.classList.add('cross');
 }
 
-function checkSolution() {
-    if (!currentLevel || !isGameActive) return;
-
-    const size = currentLevel.size;
-    const target = currentLevel.treesPerLine;
-    let errors = [];
-
-    const addError = (r, c) => {
-        const index = r * size + c;
-        boardEl.children[index].classList.add('error');
-    };
+// Funzione pura: indici (r * size + c) delle celle che violano un vincolo
+// (riga, colonna, area con numero di alberi sbagliato; alberi adiacenti).
+// Array vuoto = griglia risolta. Non tocca il DOM.
+function getSolutionErrors(grid, level) {
+    const size = level.size;
+    const target = level.treesPerLine;
+    const bad = new Set();
+    const isTree = (r, c) => !!grid[r] && grid[r][c] === 1;
 
     for (let r = 0; r < size; r++) {
         let count = 0;
-        for (let c = 0; c < size; c++) if (gridState[r][c] === 1) count++;
-        if (count !== target) {
-            for (let c = 0; c < size; c++) addError(r, c);
-            errors.push(`Riga ${r + 1}`);
-        }
+        for (let c = 0; c < size; c++) if (isTree(r, c)) count++;
+        if (count !== target) for (let c = 0; c < size; c++) bad.add(r * size + c);
     }
     for (let c = 0; c < size; c++) {
         let count = 0;
-        for (let r = 0; r < size; r++) if (gridState[r][c] === 1) count++;
-        if (count !== target) {
-            for (let r = 0; r < size; r++) addError(r, c);
-            errors.push(`Colonna ${c + 1}`);
-        }
+        for (let r = 0; r < size; r++) if (isTree(r, c)) count++;
+        if (count !== target) for (let r = 0; r < size; r++) bad.add(r * size + c);
     }
-    let regionCounts = {};
+    const regionCounts = {};
     for (let r = 0; r < size; r++) {
         for (let c = 0; c < size; c++) {
-            const regId = currentLevel.regions[r][c];
+            const regId = level.regions[r][c];
             if (!regionCounts[regId]) regionCounts[regId] = 0;
-            if (gridState[r][c] === 1) regionCounts[regId]++;
-        }
-    }
-    for (let regId in regionCounts) {
-        if (regionCounts[regId] !== target) {
-            for (let r = 0; r < size; r++) {
-                for (let c = 0; c < size; c++) {
-                    if (currentLevel.regions[r][c] == regId) addError(r, c);
-                }
-            }
-            errors.push(`Area ${regId}`);
+            if (isTree(r, c)) regionCounts[regId]++;
         }
     }
     for (let r = 0; r < size; r++) {
         for (let c = 0; c < size; c++) {
-            if (gridState[r][c] !== 1) continue;
+            if (regionCounts[level.regions[r][c]] !== target) bad.add(r * size + c);
+        }
+    }
+    for (let r = 0; r < size; r++) {
+        for (let c = 0; c < size; c++) {
+            if (!isTree(r, c)) continue;
             for (let dr = -1; dr <= 1; dr++) {
                 for (let dc = -1; dc <= 1; dc++) {
                     if (dr === 0 && dc === 0) continue;
                     const nr = r + dr, nc = c + dc;
-                    if (nr >= 0 && nr < size && nc >= 0 && nc < size) {
-                        if (gridState[nr][nc] === 1) {
-                            addError(r, c);
-                            addError(nr, nc);
-                            errors.push("Adiacenza");
-                        }
+                    if (nr >= 0 && nr < size && nc >= 0 && nc < size && isTree(nr, nc)) {
+                        bad.add(r * size + c);
+                        bad.add(nr * size + nc);
                     }
                 }
             }
         }
     }
+    return Array.from(bad);
+}
 
-    if (errors.length === 0) {
+// Funzione pura: la griglia e' una soluzione corretta?
+function isSolved(grid, level) {
+    if (!grid || !level) return false;
+    return getSolutionErrors(grid, level).length === 0;
+}
+
+// Pulsante "Controlla": vittoria oppure evidenzia gli errori
+function checkSolution() {
+    if (!currentLevel || !isGameActive) return;
+
+    if (isSolved(gridState, currentLevel)) {
         handleWin();
-    } else {
-        setStatus('status.errors', null, 'error');
+        return;
     }
+    getSolutionErrors(gridState, currentLevel).forEach(index => {
+        const cell = boardEl.children[index];
+        if (cell) cell.classList.add('error');
+    });
+    setStatus('status.errors', null, 'error');
 }
 
 function handleWin() {
+    // Tempo esatto al momento della vittoria (il timer aggiorna ogni secondo)
+    if (isTimerRunning) elapsedTime = Math.floor((Date.now() - startTime) / 1000);
     stopTimer();
     isGameActive = false;
+    cancelLongPress();
+    updateUndoButton();
     triggerConfetti();
-    setStatus('status.win', { size: currentSize }, 'success');
 
+    // completedOn: giorno LOCALE del completamento (serie di giorni, streak.js).
+    // Un puzzle d'archivio ha date != completedOn e non conta per la serie.
+    const completedOn = localDateStr();
     const result = {
         date: todayStr,
         timeSeconds: elapsedTime,
-        size: currentSize
+        size: currentSize,
+        completedOn: completedOn
     };
     localStorage.setItem(`alberi_daily_${todayStr}_${currentSize}`, JSON.stringify(result));
     localStorage.removeItem(`alberi_progress_${todayStr}_${currentSize}`);
 
     if (currentUser && window.firebaseReady) {
-        saveCompletionToFirestore(currentUser.uid, todayStr, currentSize, elapsedTime);
+        saveCompletionToFirestore(currentUser.uid, todayStr, currentSize, elapsedTime, completedOn);
         removeProgressFromFirestore(currentUser.uid, todayStr, currentSize);
     }
+
+    // Messaggio: con la serie se e' il puzzle di oggi
+    let summary = null;
+    try { summary = getProgressSummary(); } catch (e) { /* streak.js assente */ }
+    if (summary && todayStr === completedOn && summary.streak.playedToday) {
+        const n = summary.streak.current;
+        setStatus(n > 1 ? 'status.winStreak' : 'status.winStreakStart', { size: currentSize, n: n }, 'success');
+    } else {
+        setStatus('status.win', { size: currentSize }, 'success');
+    }
+    if (typeof updateStreakBadge === 'function') updateStreakBadge();
 
     renderSizeSelector();
     showShareUI();
 
     boardEl.classList.add('disabled');
+
+    // Traguardi nuovi: toast (una volta per dispositivo)
+    if (summary && typeof announceNewAchievements === 'function') {
+        try { announceNewAchievements(summary); } catch (e) { /* ignora */ }
+    }
 
     // Anonimo senza nickname: proponi il nickname per la classifica (con "salta")
     if (typeof maybePromptNicknameAfterWin === 'function') maybePromptNicknameAfterWin();
@@ -632,6 +790,7 @@ function showCompletedState(data, size, level) {
     loadLevel(level);
 
     isGameActive = false;
+    updateUndoButton();
     boardEl.classList.add('disabled');
     boardEl.style.opacity = '0.6';
 
@@ -652,6 +811,7 @@ function formatTime(seconds) {
 function showShareUI() {
     btnCheck.style.display = 'none';
     btnReset.style.display = 'none';
+    if (btnUndo) btnUndo.style.display = 'none';
     shareContainer.style.display = 'block';
 }
 

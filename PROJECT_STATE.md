@@ -161,3 +161,43 @@ Contesto dati: 131 iscritti, 38% del traffico da giorgiodendi.com, 403 tap su "c
 - Utenti anonimi accumulano account in Firebase Auth (uno per browser/dispositivo). Valutare in futuro la pulizia automatica degli anonimi inattivi (impostazione disponibile con Identity Platform).
 - Se un anonimo che ha saltato il nickname poi si registra lo stesso giorno, i completamenti di oggi vengono pubblicati in classifica con il nickname scelto in registrazione.
 - Al logout di un utente registrato si rientra come nuovo anonimo e i completamenti in `localStorage` vengono sincronizzati anche su quell'anonimo (comportamento analogo a prima, quando venivano sincronizzati sul successivo account che faceva login).
+
+## Blocco 3 (19/11/2026)
+
+Contesto dati: ~131 iscritti, chi gioca torna molto (in media 3 h e 17 sessioni a testa) ma niente premiava il ritorno quotidiano.
+
+### Serie di giorni (streak) 🔥
+- Nuovo `streak.js` (caricato prima di `auth.js`): unisce i completamenti di `localStorage` (`alberi_daily_{date}_{size}`) e di Firestore `users/{uid}/completions` (una lettura dell'intera sottocollezione all'accesso e all'apertura delle statistiche, tenuta in memoria; NON copiata in localStorage).
+- Un giorno conta se c'e' un puzzle DI QUEL GIORNO completato quel giorno stesso. Da ora ogni completamento salva `completedOn` (data LOCALE del completamento) in localStorage e in `users/{uid}/completions` (mai in `leaderboard`: le regole lo rifiuterebbero). Un puzzle d'archivio ha `date != completedOn` e non conta. I completamenti vecchi non hanno `completedOn`: si accetta la data del puzzle (non si puo' distinguere). `completedAt` (timestamp server) non e' usabile: `syncLocalToFirestore` lo imposta al momento della sincronizzazione.
+- Calcolo (`computeStreakInfo`): se oggi c'e' un completamento valido si conta da oggi, altrimenti da ieri (oggi non ancora giocato non interrompe la serie, badge con stile "da continuare"); record = serie piu' lunga. Le date si spostano con `new Date(y, m, d +/- 1)` sui componenti locali: corretto col cambio dell'ora legale. Il vecchio `calculateStreak` di `auth.js` e' stato spostato in `streak.js` e corretto (stessa firma, back-compat).
+- Header: badge `🔥 N` (clic = statistiche), nascosto se la serie e' 0. Statistiche: serie attuale, record, completati, giorni giocati, migliori tempi, traguardi; funzionano anche solo con dati locali.
+- Dopo la vittoria del puzzle di oggi: "🔥 Serie di N giorni! Torna domani per continuarla" (N = 1: "Primo giorno della serie").
+
+### Traguardi
+- Calcolati dai completamenti, niente server: prima vittoria, serie di 3 / 7 / 30 (sul record), tutte le misure 5x5-10x10 della stessa data di puzzle, prima sfida 12x12, 50 e 100 puzzle completati.
+- Dopo ogni vittoria, i traguardi sbloccati non ancora annunciati su questo dispositivo mostrano un toast (uno solo anche se sono piu' d'uno) e l'evento analytics `achievement_unlocked {id}`. Gia' annunciati: `localStorage.alberi_achievements_seen`.
+
+### Gioco
+- **Vittoria automatica**: dopo ogni mossa (e dopo Annulla), se `isSolved(gridState, currentLevel)` parte `handleWin()`. "Controlla" resta per vedere gli errori. Logica fattorizzata in funzioni pure: `getSolutionErrors(grid, level)` (indici delle celle in errore) e `isSolved(grid, level)`; stessi vincoli di prima. `handleWin` ora calcola il tempo esatto al momento della vittoria.
+- **Annulla ↶**: stack `{r, c, prev}` (max 1000) della partita corrente; Ctrl+Z / Cmd+Z (non nei campi di testo); disabilitato se vuoto o a partita finita; si svuota al cambio puzzle e su "Ricomincia" (che non e' annullabile).
+- **Tocco prolungato**: input della griglia con pointer events delegati su `#board` (`applyCellAction(r, c, 'cycle' | 'cross')` e' l'unica via per cambiare una cella; `handleCellClick` resta come wrapper). Mouse: come prima (sinistro cicla, destro croce). Tocco/penna: tap = cicla; pressione di 450 ms = croce/vuoto con `navigator.vibrate(15)`; il rilascio dopo un tocco prolungato non fa nulla; spostamento > 10 px, `pointercancel` (scroll) o secondo dito = nessun segno. CSS: `touch-action: manipulation`, niente callout/selezione sulle celle. Regole aggiornate in IT/EN.
+
+### Classifica
+- Tab 12x12 quando la data mostrata e' una domenica.
+- Se l'utente non e' nella top 20 (e la top 20 e' piena) compare sotto una riga separata con posizione e tempo: legge il proprio documento `leaderboard/{date}_{size}_{uid}` e conta chi ha `timeSeconds` minore. Il compat SDK 10.12 NON espone `query.count()` (verificato sul file CDN): il codice usa `count()` se esistesse, altrimenti legge al massimo 200 documenti (oltre mostra ">200"). Se la query fallisce resta solo la top 20.
+- **Indici**: la query di posizione (`date ==`, `size ==`, `timeSeconds <`) usa lo stesso indice composito della top 20 (`date`, `size`, `timeSeconds` crescenti), quindi non serve un indice nuovo. L'indice e' ora documentato in `firestore.indexes.json`. Se in console mancasse: Firestore -> Indici -> Composito -> raccolta `leaderboard`, campi `date` Crescente, `size` Crescente, `timeSeconds` Crescente, ambito Raccolta (oppure aprire il link "create index" che compare nell'errore della console del browser). Da CLI: `firebase deploy --only firestore:indexes` con `firebase.json` che punti al file.
+
+### File
+- Creati: `streak.js`, `firestore.indexes.json`.
+- Modificati: `script.js`, `auth.js`, `firestore-sync.js`, `i18n.js`, `index.html`, `style.css`, `PROJECT_STATE.md`. Non toccati: `generator.js`, `gen-worker.js`, `levels12.js`, `firestore.rules`.
+
+### Verifica fatta
+- `node --check` su tutti i JS; test unitario Node della serie (buchi, cambio mese/anno, ora legale marzo/ottobre, archivio vs legacy, traguardi).
+- Test headless (Chrome, profilo isolato, fuso Europe/Rome, richieste Firebase bloccate, Firestore finto per la classifica): 37 controlli ok su badge da dati finti con un giorno saltato, vittoria automatica, errori di "Controlla", Annulla/Ctrl+Z/Ricomincia/cambio puzzle, click destro, tap/tocco prolungato/trascinamento con eventi touch, messaggio serie, toast non ripetuto, archivio che non conta, statistiche, cambio lingua, tab 12x12, riga della mia posizione, escape del nickname.
+
+### Limiti noti / rischi
+- Un puzzle iniziato prima di mezzanotte e finito dopo non conta per la serie (completedOn != date).
+- La serie e' calcolata sul dispositivo: chi gioca su due dispositivi vede la serie completa solo dopo la lettura dei completamenti Firestore (all'avvio). I toast dei traguardi sono per dispositivo (localStorage).
+- Utenti con molti completamenti gia' fatti: alla prima vittoria dopo il deploy ricevono in un solo toast tutti i traguardi gia' raggiunti (e i relativi `achievement_unlocked`).
+- Lettura completa di `users/{uid}/completions` a ogni avvio e apertura statistiche (N letture, con N = completamenti dell'utente). Preesistente e non toccato: `syncLocalToFirestore` fa una lettura per ogni completamento locale a ogni accesso.
+- Il tocco prolungato e' stato provato con eventi touch simulati in Chrome headless, non su un telefono vero (iOS Safari in particolare).

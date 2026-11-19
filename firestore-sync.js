@@ -10,24 +10,30 @@ function getLeaderboardNickname() {
     return sanitizeNickname(currentUser.displayName || 'Anonimo');
 }
 
-// Salva un completamento su Firestore (profilo utente + classifica pubblica)
-async function saveCompletionToFirestore(uid, date, size, timeSeconds) {
+// Salva un completamento su Firestore (profilo utente + classifica pubblica).
+// completedOn (opzionale): data locale 'YYYY-MM-DD' del completamento, serve alla
+// serie di giorni (streak.js). Solo nel profilo utente, MAI in classifica
+// (le regole di `leaderboard` rifiutano campi extra).
+async function saveCompletionToFirestore(uid, date, size, timeSeconds, completedOn) {
     if (!window.firebaseReady || !firebaseDb || !uid) return;
 
     const docId = `${date}_${size}`;
     const nickname = getLeaderboardNickname();
 
     try {
+        const completion = {
+            date: date,
+            size: size,
+            timeSeconds: timeSeconds,
+            completedAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        if (typeof completedOn === 'string' && completedOn) completion.completedOn = completedOn;
+
         // Salva nel profilo utente
         await firebaseDb
             .collection('users').doc(uid)
             .collection('completions').doc(docId)
-            .set({
-                date: date,
-                size: size,
-                timeSeconds: timeSeconds,
-                completedAt: firebase.firestore.FieldValue.serverTimestamp()
-            }, { merge: true });
+            .set(completion, { merge: true });
 
         // Salva nella classifica pubblica (solo se l'utente ha un nickname)
         if (nickname) {
@@ -206,7 +212,7 @@ async function syncLocalToFirestore(uid) {
             if (data && data.timeSeconds !== undefined) {
                 const existing = await getCompletionFromFirestore(uid, date, size);
                 if (!existing) {
-                    await saveCompletionToFirestore(uid, date, size, data.timeSeconds);
+                    await saveCompletionToFirestore(uid, date, size, data.timeSeconds, data.completedOn);
                     synced++;
                 }
             }
@@ -226,11 +232,13 @@ async function isLevelCompleted(date, size) {
     if (currentUser && window.firebaseReady) {
         const firestoreData = await getCompletionFromFirestore(currentUser.uid, date, size);
         if (firestoreData) {
-            localStorage.setItem(`alberi_daily_${date}_${size}`, JSON.stringify({
+            const local = {
                 date: firestoreData.date,
                 timeSeconds: firestoreData.timeSeconds,
                 size: firestoreData.size
-            }));
+            };
+            if (firestoreData.completedOn) local.completedOn = firestoreData.completedOn;
+            localStorage.setItem(`alberi_daily_${date}_${size}`, JSON.stringify(local));
             return firestoreData;
         }
     }
@@ -242,9 +250,21 @@ async function isLevelCompleted(date, size) {
 // CLASSIFICA
 // ============================================================
 
+const LEADERBOARD_TOP = 20;
+const LEADERBOARD_RANK_SCAN_CAP = 200; // senza count(): conta al massimo 200 tempi migliori
+let _leaderboardRequestId = 0; // ignora risposte di tab non piu' selezionate
+
+function formatLeaderboardTime(value) {
+    const secs = Math.max(0, Math.floor(Number(value) || 0));
+    const m = Math.floor(secs / 60).toString().padStart(2, '0');
+    const s = (secs % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+}
+
 async function loadLeaderboard(date, size) {
     const content = document.getElementById('leaderboard-content');
     if (!content) return;
+    const requestId = ++_leaderboardRequestId;
 
     content.innerHTML = `<p>${escapeHtml(t('lb.loading'))}</p>`;
 
@@ -253,16 +273,17 @@ async function loadLeaderboard(date, size) {
         return;
     }
 
+    let entries = [];
     try {
         const snapshot = await firebaseDb
             .collection('leaderboard')
             .where('date', '==', date)
             .where('size', '==', size)
             .orderBy('timeSeconds', 'asc')
-            .limit(20)
+            .limit(LEADERBOARD_TOP)
             .get();
+        if (requestId !== _leaderboardRequestId) return;
 
-        const entries = [];
         snapshot.forEach(doc => entries.push(doc.data()));
 
         if (entries.length === 0) {
@@ -273,16 +294,13 @@ async function loadLeaderboard(date, size) {
         let html = '<div class="leaderboard-list">';
         entries.forEach((entry, i) => {
             const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
-            const secs = Math.max(0, Math.floor(Number(entry.timeSeconds) || 0));
-            const m = Math.floor(secs / 60).toString().padStart(2, '0');
-            const s = (secs % 60).toString().padStart(2, '0');
             const isMe = currentUser && entry.uid === currentUser.uid;
             // Nickname e' un dato utente: SEMPRE escapato (XSS)
             html += `
                 <div class="leaderboard-row ${isMe ? 'leaderboard-me' : ''}">
                     <span class="leaderboard-rank">${medal}</span>
                     <span class="leaderboard-name">${escapeHtml(entry.nickname || t('lb.anonymous'))}</span>
-                    <span class="leaderboard-time">${m}:${s}</span>
+                    <span class="leaderboard-time">${formatLeaderboardTime(entry.timeSeconds)}</span>
                 </div>
             `;
         });
@@ -290,8 +308,62 @@ async function loadLeaderboard(date, size) {
         content.innerHTML = html;
     } catch (err) {
         console.error('Errore caricamento classifica:', err);
-        content.innerHTML = `<p>${escapeHtml(t('lb.error'))}</p>`;
+        if (requestId === _leaderboardRequestId) {
+            content.innerHTML = `<p>${escapeHtml(t('lb.error'))}</p>`;
+        }
+        return;
     }
+
+    // Fuori dalla top 20: riga separata con la mia posizione. Se fallisce
+    // (es. indice mancante) resta visibile solo la top 20.
+    const inTop = currentUser && entries.some(e => e.uid === currentUser.uid);
+    if (currentUser && !inTop && entries.length >= LEADERBOARD_TOP) {
+        try {
+            const mine = await getMyLeaderboardRank(date, size, currentUser.uid);
+            if (!mine || requestId !== _leaderboardRequestId) return;
+            const rankText = mine.capped ? `>${LEADERBOARD_RANK_SCAN_CAP}` : `${mine.rank}.`;
+            content.insertAdjacentHTML('beforeend', `
+                <div class="leaderboard-separator">⋯</div>
+                <div class="leaderboard-row leaderboard-me leaderboard-mine">
+                    <span class="leaderboard-rank">${escapeHtml(rankText)}</span>
+                    <span class="leaderboard-name">${escapeHtml(mine.nickname || t('lb.anonymous'))} <small>(${escapeHtml(t('lb.you'))})</small></span>
+                    <span class="leaderboard-time">${formatLeaderboardTime(mine.timeSeconds)}</span>
+                </div>
+            `);
+        } catch (err) {
+            console.warn('Posizione in classifica non disponibile:', err && (err.code || err.message));
+        }
+    }
+}
+
+// Posizione dell'utente = 1 + quanti hanno un tempo strettamente minore.
+// Usa count() se l'SDK lo offre (il compat 10.12 non lo espone), altrimenti
+// legge al massimo LEADERBOARD_RANK_SCAN_CAP documenti.
+// Indice: lo stesso della top 20 (date ==, size ==, timeSeconds), vedi firestore.indexes.json.
+async function getMyLeaderboardRank(date, size, uid) {
+    const myDoc = await firebaseDb.collection('leaderboard').doc(`${date}_${size}_${uid}`).get();
+    if (!myDoc.exists) return null;
+    const me = myDoc.data();
+    const mySeconds = Number(me.timeSeconds);
+    if (!isFinite(mySeconds)) return null;
+
+    const faster = firebaseDb
+        .collection('leaderboard')
+        .where('date', '==', date)
+        .where('size', '==', size)
+        .where('timeSeconds', '<', mySeconds);
+
+    let ahead;
+    let capped = false;
+    if (typeof faster.count === 'function') {
+        const agg = await faster.count().get();
+        ahead = agg.data().count;
+    } else {
+        const snap = await faster.limit(LEADERBOARD_RANK_SCAN_CAP).get();
+        ahead = snap.size;
+        capped = ahead >= LEADERBOARD_RANK_SCAN_CAP;
+    }
+    return { rank: ahead + 1, capped: capped, timeSeconds: mySeconds, nickname: me.nickname };
 }
 
 function showLeaderboardModal() {
@@ -299,16 +371,18 @@ function showLeaderboardModal() {
     if (!modal) return;
     modal.classList.add('show');
 
-    // Render tab per ogni taglia
+    // Render tab per ogni taglia (12x12 solo se la data e' una domenica)
     const tabsEl = document.getElementById('leaderboard-size-tabs');
     tabsEl.innerHTML = '';
     const sizes = [5, 6, 7, 8, 9, 10];
+    if (parseLocalDate(todayStr).getDay() === 0) sizes.push(12);
+    const initialSize = sizes.indexOf(currentSize) !== -1 ? currentSize : 5;
 
     sizes.forEach(size => {
         const btn = document.createElement('button');
         btn.className = 'btn secondary btn-small leaderboard-tab';
         btn.textContent = `${size}x${size}`;
-        if (size === currentSize) btn.classList.add('active');
+        if (size === initialSize) btn.classList.add('active');
         btn.onclick = () => {
             tabsEl.querySelectorAll('.leaderboard-tab').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
@@ -317,7 +391,7 @@ function showLeaderboardModal() {
         tabsEl.appendChild(btn);
     });
 
-    loadLeaderboard(todayStr, currentSize);
+    loadLeaderboard(todayStr, initialSize);
 }
 
 function hideLeaderboardModal() {

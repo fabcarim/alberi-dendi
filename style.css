@@ -698,3 +698,158 @@ footer {
     border-color: #ddd;
     background: #f8f9fa;
 }
+
+/* ============================================================
+   Blocco 3: serie, traguardi, annulla, tocco prolungato
+   ============================================================ */
+
+/* Tocco prolungato: niente menu contestuale/selezione/zoom col doppio tap */
+.board-container,
+.cell {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.cell {
+    touch-action: manipulation;
+}
+
+.btn:disabled,
+.btn:disabled:hover {
+    opacity: 0.45;
+    cursor: default;
+    transform: none;
+    background-color: #ecf0f1;
+    color: #7f8c8d;
+}
+
+/* Badge serie in header */
+.streak-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    border: 1px solid #f5b041;
+    background: #fef5e7;
+    color: #d35400;
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 0.95rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    cursor: pointer;
+}
+
+.streak-badge[hidden] {
+    display: none;
+}
+
+/* Oggi non ancora giocato: serie "da continuare" */
+.streak-badge.pending {
+    background: #fff;
+    color: #95a5a6;
+    border-style: dashed;
+    border-color: #bdc3c7;
+}
+
+.stat-card.pending .stat-number {
+    color: #95a5a6;
+}
+
+.stat-hint {
+    font-size: 0.7rem;
+    color: #d35400;
+    margin-top: 0.2rem;
+}
+
+.stats-grid {
+    grid-template-columns: repeat(4, 1fr);
+}
+
+@media (max-width: 500px) {
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* Traguardi */
+.badges-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.5rem;
+    text-align: left;
+}
+
+.badge {
+    border: 1px solid #eee;
+    border-radius: 10px;
+    padding: 0.5rem 0.6rem;
+    background: #f8f9fa;
+}
+
+.badge.unlocked {
+    background: #fef9e7;
+    border-color: #f7dc6f;
+}
+
+.badge.locked {
+    opacity: 0.5;
+}
+
+.badge-icon {
+    font-size: 1.3rem;
+}
+
+.badge-name {
+    font-weight: 700;
+    font-size: 0.85rem;
+}
+
+.badge-desc {
+    font-size: 0.7rem;
+    color: #7f8c8d;
+}
+
+#stats-modal .modal-content {
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+/* Toast */
+.toast {
+    position: fixed;
+    top: 1rem;
+    left: 50%;
+    transform: translate(-50%, -150%);
+    background: #2c3e50;
+    color: #fff;
+    padding: 0.7rem 1.2rem;
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+    z-index: 10000;
+    max-width: 90vw;
+    text-align: center;
+    opacity: 0;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    pointer-events: none;
+}
+
+.toast.show {
+    transform: translate(-50%, 0);
+    opacity: 1;
+}
+
+/* Classifica: la mia posizione fuori dalla top 20 */
+.leaderboard-separator {
+    text-align: center;
+    color: #bbb;
+    line-height: 1;
+    margin: 0.3rem 0;
+}
+
+.leaderboard-mine {
+    text-align: left;
+}

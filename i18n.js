@@ -18,6 +18,8 @@ const I18N_DICT = {
 
         'btn.check': 'Controlla',
         'btn.reset': 'Ricomincia',
+        'btn.undo': '↶ Annulla',
+        'btn.undoTitle': 'Annulla l\'ultima mossa (Ctrl+Z)',
         'btn.leaderboard': 'Classifica 🏆',
         'btn.share': 'Condividi Risultato 📤',
         'btn.copied': 'Copiato!',
@@ -30,11 +32,13 @@ const I18N_DICT = {
         'status.generating': 'Preparo la sfida 12x12... qualche secondo di pazienza 🌲',
         'status.errors': 'Ci sono errori. Controlla le caselle rosse.',
         'status.win': 'Fantastico! Hai completato il livello {size}x{size}! 🎉',
+        'status.winStreak': 'Fantastico! Livello {size}x{size} completato 🎉 🔥 Serie di {n} giorni! Torna domani per continuarla.',
+        'status.winStreakStart': 'Fantastico! Livello {size}x{size} completato 🎉 🔥 Primo giorno della serie: torna domani per continuarla!',
         'status.alreadyDone': 'Hai gia\' completato il livello {size}x{size}! Tempo: {time} 🌟',
         'status.weeklyLocked': 'La Sfida Speciale si sblocca Domenica alle 09:00!',
 
-        'rules.html': '<p><strong>Regole:</strong> Clicca per ciclare: Croce <span class="icon">❌</span> -> Albero <span class="icon">🌳</span> -> Vuoto.</p>' +
-            '<p>Su PC puoi usare il Tasto Destro per mettere subito l\'Erba.</p>' +
+        'rules.html': '<p><strong>Regole:</strong> Tocca o clicca per ciclare: Croce <span class="icon">❌</span> -> Albero <span class="icon">🌳</span> -> Vuoto.</p>' +
+            '<p>Per mettere o togliere subito la croce: tieni premuto sulla casella (telefono) o usa il tasto destro (PC). ↶ Annulla (Ctrl+Z) torna indietro di una mossa.</p>' +
             '<p>Non posizionare alberi adiacenti (neanche in diagonale).</p>',
         'footer.credits': 'Developed with AI. Idea originale &copy; Giorgio Dendi.',
         'footer.privacy': 'Privacy',
@@ -96,7 +100,9 @@ const I18N_DICT = {
         'stats.needLogin': 'Devi essere loggato per vedere le statistiche.',
         'stats.empty': 'Nessun puzzle completato ancora. Gioca per vedere le tue statistiche!',
         'stats.completed': 'Puzzle completati',
-        'stats.streak': 'Streak giorni',
+        'stats.streak': 'Serie attuale',
+        'stats.bestStreak': 'Record serie',
+        'stats.streakPending': 'Gioca oggi per continuarla',
         'stats.daysPlayed': 'Giorni giocati',
         'stats.bestTimes': 'Migliori tempi',
         'stats.error': 'Errore nel caricamento delle statistiche.',
@@ -107,6 +113,30 @@ const I18N_DICT = {
         'lb.empty': 'Nessuno ha ancora completato questa sfida oggi. Sii il primo!',
         'lb.error': 'Errore nel caricamento della classifica. Potrebbe servire un indice Firestore.',
         'lb.anonymous': 'Anonimo',
+        'lb.you': 'tu',
+
+        'streak.badgeTitle': 'Serie di {n} giorni consecutivi',
+        'streak.badgePendingTitle': 'Serie di {n} giorni: gioca il puzzle di oggi per continuarla',
+
+        'ach.title': 'Traguardi',
+        'ach.toastOne': '🏅 Traguardo sbloccato: {name}',
+        'ach.toastMany': '🏅 Traguardi sbloccati: {names}',
+        'ach.first_win.name': 'Prima vittoria',
+        'ach.first_win.desc': 'Completa il tuo primo puzzle',
+        'ach.streak_3.name': 'Serie di 3',
+        'ach.streak_3.desc': 'Gioca il puzzle del giorno 3 giorni di fila',
+        'ach.streak_7.name': 'Serie di 7',
+        'ach.streak_7.desc': 'Gioca il puzzle del giorno 7 giorni di fila',
+        'ach.streak_30.name': 'Serie di 30',
+        'ach.streak_30.desc': 'Gioca il puzzle del giorno 30 giorni di fila',
+        'ach.all_sizes_day.name': 'Giornata completa',
+        'ach.all_sizes_day.desc': 'Completa tutte le misure 5x5-10x10 dello stesso giorno',
+        'ach.sunday_12.name': 'Sfida della domenica',
+        'ach.sunday_12.desc': 'Completa una sfida della domenica 12x12',
+        'ach.solved_50.name': '50 puzzle',
+        'ach.solved_50.desc': 'Completa 50 puzzle',
+        'ach.solved_100.name': '100 puzzle',
+        'ach.solved_100.desc': 'Completa 100 puzzle',
 
         'lang.switchTitle': 'Lingua'
     },
@@ -119,6 +149,8 @@ const I18N_DICT = {
 
         'btn.check': 'Check',
         'btn.reset': 'Restart',
+        'btn.undo': '↶ Undo',
+        'btn.undoTitle': 'Undo the last move (Ctrl+Z)',
         'btn.leaderboard': 'Leaderboard 🏆',
         'btn.share': 'Share Result 📤',
         'btn.copied': 'Copied!',
@@ -131,11 +163,13 @@ const I18N_DICT = {
         'status.generating': 'Preparing the 12x12 challenge... just a few seconds 🌲',
         'status.errors': 'There are mistakes. Check the red cells.',
         'status.win': 'Great! You solved the {size}x{size} puzzle! 🎉',
+        'status.winStreak': 'Great! {size}x{size} solved 🎉 🔥 {n}-day streak! Come back tomorrow to keep it going.',
+        'status.winStreakStart': 'Great! {size}x{size} solved 🎉 🔥 Day one of your streak: come back tomorrow to keep it going!',
         'status.alreadyDone': 'You already solved the {size}x{size} puzzle! Time: {time} 🌟',
         'status.weeklyLocked': 'The Special Challenge unlocks on Sunday at 09:00!',
 
-        'rules.html': '<p><strong>Rules:</strong> Click to cycle: Cross <span class="icon">❌</span> -> Tree <span class="icon">🌳</span> -> Empty.</p>' +
-            '<p>On desktop, right-click places a cross directly.</p>' +
+        'rules.html': '<p><strong>Rules:</strong> Tap or click to cycle: Cross <span class="icon">❌</span> -> Tree <span class="icon">🌳</span> -> Empty.</p>' +
+            '<p>To place or remove a cross directly: long-press the cell (phone) or right-click (desktop). ↶ Undo (Ctrl+Z) takes back one move.</p>' +
             '<p>Trees cannot touch each other (not even diagonally).</p>',
         'footer.credits': 'Developed with AI. Original idea &copy; Giorgio Dendi.',
         'footer.privacy': 'Privacy',
@@ -197,7 +231,9 @@ const I18N_DICT = {
         'stats.needLogin': 'You need to be logged in to see your statistics.',
         'stats.empty': 'No puzzles solved yet. Play to see your statistics!',
         'stats.completed': 'Puzzles solved',
-        'stats.streak': 'Day streak',
+        'stats.streak': 'Current streak',
+        'stats.bestStreak': 'Best streak',
+        'stats.streakPending': 'Play today to keep it',
         'stats.daysPlayed': 'Days played',
         'stats.bestTimes': 'Best times',
         'stats.error': 'Error loading statistics.',
@@ -208,6 +244,30 @@ const I18N_DICT = {
         'lb.empty': 'Nobody has solved this challenge yet today. Be the first!',
         'lb.error': 'Error loading the leaderboard. A Firestore index may be required.',
         'lb.anonymous': 'Anonymous',
+        'lb.you': 'you',
+
+        'streak.badgeTitle': '{n}-day streak',
+        'streak.badgePendingTitle': '{n}-day streak: play today\'s puzzle to keep it going',
+
+        'ach.title': 'Achievements',
+        'ach.toastOne': '🏅 Achievement unlocked: {name}',
+        'ach.toastMany': '🏅 Achievements unlocked: {names}',
+        'ach.first_win.name': 'First win',
+        'ach.first_win.desc': 'Solve your first puzzle',
+        'ach.streak_3.name': '3-day streak',
+        'ach.streak_3.desc': 'Play the daily puzzle 3 days in a row',
+        'ach.streak_7.name': '7-day streak',
+        'ach.streak_7.desc': 'Play the daily puzzle 7 days in a row',
+        'ach.streak_30.name': '30-day streak',
+        'ach.streak_30.desc': 'Play the daily puzzle 30 days in a row',
+        'ach.all_sizes_day.name': 'Full day',
+        'ach.all_sizes_day.desc': 'Solve every size 5x5-10x10 of the same day',
+        'ach.sunday_12.name': 'Sunday Challenge',
+        'ach.sunday_12.desc': 'Solve a 12x12 Sunday Challenge',
+        'ach.solved_50.name': '50 puzzles',
+        'ach.solved_50.desc': 'Solve 50 puzzles',
+        'ach.solved_100.name': '100 puzzles',
+        'ach.solved_100.desc': 'Solve 100 puzzles',
 
         'lang.switchTitle': 'Language'
     }

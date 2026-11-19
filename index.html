@@ -75,6 +75,7 @@
                     <button type="button" class="lang-btn" data-lang="it" onclick="setLang('it')" aria-label="Italiano">🇮🇹</button>
                     <button type="button" class="lang-btn" data-lang="en" onclick="setLang('en')" aria-label="English">🇬🇧</button>
                 </div>
+                <button type="button" id="streak-badge" class="streak-badge" onclick="showStatsModal()" hidden></button>
                 <div id="auth-container" class="auth-container"></div>
             </div>
             <h1 id="main-title" data-i18n="app.title">Alberi Daily 🌲</h1>
@@ -90,6 +91,7 @@
         <div class="game-controls">
             <div id="size-selector" style="margin-bottom: 1rem; width: 100%; display: flex; justify-content: center; gap: 0.5rem; flex-wrap: wrap;"></div>
             <button id="btn-check" class="btn primary" data-i18n="btn.check">Controlla</button>
+            <button id="btn-undo" class="btn secondary" data-i18n="btn.undo" data-i18n-title="btn.undoTitle" title="Annulla l'ultima mossa (Ctrl+Z)" disabled>↶ Annulla</button>
             <button id="btn-reset" class="btn secondary" data-i18n="btn.reset">Ricomincia</button>
             <button id="btn-leaderboard" class="btn secondary" style="background-color: #f39c12; color: white;" data-i18n="btn.leaderboard">Classifica 🏆</button>
         </div>
@@ -105,8 +107,8 @@
         </main>
 
         <div class="rules-hint" data-i18n-html="rules.html">
-            <p><strong>Regole:</strong> Clicca per ciclare: Croce <span class="icon">❌</span> -> Albero <span class="icon">🌳</span> -> Vuoto.</p>
-            <p>Su PC puoi usare il Tasto Destro per mettere subito l'Erba.</p>
+            <p><strong>Regole:</strong> Tocca o clicca per ciclare: Croce <span class="icon">❌</span> -> Albero <span class="icon">🌳</span> -> Vuoto.</p>
+            <p>Per mettere o togliere subito la croce: tieni premuto sulla casella (telefono) o usa il tasto destro (PC). ↶ Annulla (Ctrl+Z) torna indietro di una mossa.</p>
             <p>Non posizionare alberi adiacenti (neanche in diagonale).</p>
         </div>
 
@@ -210,6 +212,7 @@
     <script src="generator.js"></script>
     <script src="levels12.js"></script>
     <script src="firestore-sync.js"></script>
+    <script src="streak.js"></script>
     <script src="auth.js"></script>
     <script src="script.js"></script>
 </body>

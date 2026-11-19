@@ -43,6 +43,8 @@ function initAuth() {
         if (user) {
             if (!user.isAnonymous) hideLoginOverlay();
             await syncLocalToFirestore(user.uid);
+            // Completamenti degli altri dispositivi per serie e traguardi (una lettura)
+            if (typeof loadRemoteCompletions === 'function') loadRemoteCompletions(user.uid);
             if (typeof saveShareReferral === 'function') saveShareReferral(user.uid);
             // Per l'anonimo appena creato non ricarichiamo il livello se si sta gia'
             // giocando (stesso puzzle, niente da recuperare): evita il "salto" del timer.
@@ -397,7 +399,8 @@ function getAuthErrorMessage(code) {
     return (code && hasT(key)) ? t(key) : t('authErr.default');
 }
 
-// Statistiche
+// Statistiche: completamenti locali + Firestore (vedi streak.js), serie e traguardi.
+// Funziona anche senza Firestore (solo dati locali).
 async function showStatsModal() {
     const modal = document.getElementById('stats-modal');
     if (!modal) return;
@@ -406,99 +409,59 @@ async function showStatsModal() {
     statsContent.innerHTML = `<p>${escapeHtml(t('stats.loading'))}</p>`;
     modal.classList.add('show');
 
-    if (!currentUser || !firebaseDb) {
-        statsContent.innerHTML = `<p>${escapeHtml(t('stats.needLogin'))}</p>`;
-        return;
+    if (currentUser && window.firebaseReady && typeof loadRemoteCompletions === 'function') {
+        await loadRemoteCompletions(currentUser.uid);
     }
 
     try {
-        const snapshot = await firebaseDb
-            .collection('users').doc(currentUser.uid)
-            .collection('completions')
-            .orderBy('completedAt', 'desc')
-            .get();
+        const summary = getProgressSummary();
+        const streak = summary.streak;
+        let html = '';
 
-        const completions = [];
-        snapshot.forEach(doc => completions.push(doc.data()));
-
-        if (completions.length === 0) {
-            statsContent.innerHTML = `<p>${escapeHtml(t('stats.empty'))}</p>`;
-            return;
-        }
-
-        const totalCompleted = completions.length;
-        const bestTimes = {};
-        const dateSet = new Set();
-
-        completions.forEach(c => {
-            dateSet.add(c.date);
-            const key = `${c.size}x${c.size}`;
-            if (!bestTimes[key] || c.timeSeconds < bestTimes[key]) {
-                bestTimes[key] = c.timeSeconds;
-            }
-        });
-
-        const streak = calculateStreak(dateSet);
-
-        let html = `
+        if (summary.total === 0) {
+            html += `<p>${escapeHtml(t('stats.empty'))}</p>`;
+        } else {
+            const streakHint = (!streak.playedToday && streak.current > 0)
+                ? `<div class="stat-hint">${escapeHtml(t('stats.streakPending'))}</div>` : '';
+            html += `
             <div class="stats-grid">
                 <div class="stat-card">
-                    <div class="stat-number">${totalCompleted}</div>
+                    <div class="stat-number">${summary.total}</div>
                     <div class="stat-label">${escapeHtml(t('stats.completed'))}</div>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-number">${streak}</div>
+                <div class="stat-card ${streak.playedToday ? '' : 'pending'}">
+                    <div class="stat-number">🔥 ${streak.current}</div>
                     <div class="stat-label">${escapeHtml(t('stats.streak'))}</div>
+                    ${streakHint}
                 </div>
                 <div class="stat-card">
-                    <div class="stat-number">${dateSet.size}</div>
+                    <div class="stat-number">${streak.best}</div>
+                    <div class="stat-label">${escapeHtml(t('stats.bestStreak'))}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${summary.daysPlayed}</div>
                     <div class="stat-label">${escapeHtml(t('stats.daysPlayed'))}</div>
                 </div>
             </div>
             <h3 style="margin: 1rem 0 0.5rem;">${escapeHtml(t('stats.bestTimes'))}</h3>
             <div class="best-times">
-        `;
+            `;
 
-        const sortedSizes = Object.keys(bestTimes).sort((a, b) => parseInt(a) - parseInt(b));
-        sortedSizes.forEach(size => {
-            const secs = Math.max(0, Math.floor(Number(bestTimes[size]) || 0));
-            const m = Math.floor(secs / 60).toString().padStart(2, '0');
-            const s = (secs % 60).toString().padStart(2, '0');
-            html += `<div class="best-time-row"><span>${escapeHtml(size)}</span><span>${m}:${s}</span></div>`;
-        });
+            Object.keys(summary.bestTimes).map(Number).sort((a, b) => a - b).forEach(size => {
+                const secs = Math.max(0, Math.floor(Number(summary.bestTimes[size]) || 0));
+                const m = Math.floor(secs / 60).toString().padStart(2, '0');
+                const s = (secs % 60).toString().padStart(2, '0');
+                html += `<div class="best-time-row"><span>${escapeHtml(size + 'x' + size)}</span><span>${m}:${s}</span></div>`;
+            });
+            html += '</div>';
+        }
 
-        html += '</div>';
+        html += renderAchievementsHtml(summary);
         statsContent.innerHTML = html;
     } catch (err) {
         console.error('Errore caricamento statistiche:', err);
         statsContent.innerHTML = `<p>${escapeHtml(t('stats.error'))}</p>`;
     }
-}
-
-function calculateStreak(dateSet) {
-    if (dateSet.size === 0) return 0;
-
-    // Date in ora locale (prima era UTC)
-    const dates = Array.from(dateSet).sort().reverse();
-    const now = new Date();
-    const today = localDateStr(now);
-    const yesterday = localDateStr(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1));
-
-    if (dates[0] !== today && dates[0] !== yesterday) return 0;
-
-    let streak = 1;
-    for (let i = 0; i < dates.length - 1; i++) {
-        const curr = parseLocalDate(dates[i]);
-        const prev = parseLocalDate(dates[i + 1]);
-        // Math.round: con l'ora legale un giorno locale puo' durare 23 o 25 ore
-        const diff = Math.round((curr - prev) / 86400000);
-        if (diff === 1) {
-            streak++;
-        } else {
-            break;
-        }
-    }
-    return streak;
 }
 
 function hideStatsModal() {
