@@ -45,6 +45,9 @@ const I18N_DICT = {
 
         'consent.text': 'Usiamo cookie tecnici e analytics per migliorare l\'app. <a href="privacy.html" style="color: #2ecc71; text-decoration: underline;">Leggi la privacy</a>',
         'consent.accept': 'Accetta',
+        'pwa.install': '📲 Installa app',
+        'pwa.iosHint': 'Metti Alberi sulla schermata Home: tocca Condividi ⬆️ e poi "Aggiungi alla schermata Home".',
+        'pwa.close': 'Chiudi',
         'consent.deny': 'Solo essenziali',
 
         'share.title': 'Alberi {size}×{size} · {date} 🌳',
@@ -176,6 +179,9 @@ const I18N_DICT = {
 
         'consent.text': 'We use technical cookies and analytics to improve the app. <a href="privacy.html" style="color: #2ecc71; text-decoration: underline;">Read the privacy policy</a>',
         'consent.accept': 'Accept',
+        'pwa.install': '📲 Install app',
+        'pwa.iosHint': 'Add Alberi to your Home Screen: tap Share ⬆️ and then "Add to Home Screen".',
+        'pwa.close': 'Close',
         'consent.deny': 'Essential only',
 
         'share.title': 'Alberi {size}×{size} · {date} 🌳',

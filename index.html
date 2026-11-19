@@ -26,6 +26,16 @@
     <meta name="twitter:description" content="Piazza gli alberi rispettando righe, colonne e aree colorate. Riesci a battere i tuoi amici?">
     <meta name="twitter:image" content="https://fabcarim.github.io/alberi-dendi/og-image.png">
 
+    <!-- App installabile (PWA) -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#2ecc71">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Alberi">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
 </head>
@@ -170,6 +180,7 @@
 
     <!-- Traduzioni: prima di tutto il resto (applica subito i testi statici) -->
     <script src="i18n.js"></script>
+    <script src="pwa.js"></script>
 
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>

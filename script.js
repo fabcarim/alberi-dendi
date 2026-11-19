@@ -146,6 +146,7 @@ function init() {
             utm_campaign: params.get('utm_campaign') || ''
         };
         if (referral) openParams.referral_source = referral;
+        openParams.display_mode = (typeof isStandalonePwa === 'function' && isStandalonePwa()) ? 'standalone' : 'browser';
         if (typeof trackEvent === 'function') trackEvent('app_open', openParams);
     } catch (e) { /* silent */ }
 }

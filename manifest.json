@@ -1,0 +1,19 @@
+{
+  "id": "./",
+  "name": "Alberi Daily",
+  "short_name": "Alberi",
+  "description": "Un puzzle di logica ogni giorno: piazza gli alberi rispettando righe, colonne e aree colorate.",
+  "lang": "it",
+  "start_url": "./?source=pwa",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#eef2f5",
+  "theme_color": "#2ecc71",
+  "categories": ["games", "puzzle", "education"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
