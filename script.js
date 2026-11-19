@@ -343,11 +343,16 @@ function saveProgress() {
     };
     localStorage.setItem(`alberi_progress_${todayStr}_${currentSize}`, JSON.stringify(progress));
 
-    if (currentUser && window.firebaseReady) {
-        clearTimeout(window._firestoreProgressTimer);
+    // Throttle (non debounce): il timer chiama saveProgress ogni secondo,
+    // quindi un debounce veniva azzerato di continuo e il salvataggio
+    // su Firestore non partiva mai durante la partita.
+    if (currentUser && window.firebaseReady && !window._firestoreProgressTimer) {
+        const date = todayStr, size = currentSize;
         window._firestoreProgressTimer = setTimeout(() => {
-            saveProgressToFirestore(currentUser.uid, todayStr, currentSize, gridState, elapsedTime);
-        }, 3000);
+            window._firestoreProgressTimer = null;
+            if (!isGameActive || !currentUser || todayStr !== date || currentSize !== size) return;
+            saveProgressToFirestore(currentUser.uid, date, size, gridState, elapsedTime);
+        }, 15000);
     }
 }
 
